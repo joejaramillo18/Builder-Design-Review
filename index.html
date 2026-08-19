@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPAN Builder Design Review Tool</title>
+<style id="pagecss">@page{size:letter portrait;margin:.5in}</style>
+<style>
+  :root{
+    --ink:#141414;--green:#0CB560;--green-d:#0a9a52;--red:#F72A63;--amber:#FF9500;--blue:#00B0D3;
+    --grey:#6F7070;--grey2:#9AA0A0;--line:#DADCDC;--panel:#F5F6F6;--panel2:#EAECEC;--white:#FFFFFF;
+    --greenwash:#E7F6EE;--redwash:#FDE7EE;--inkwash:#F1F2F2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--panel2);font-size:14px;line-height:1.45}
+  h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
+  button{font-family:inherit;cursor:pointer}
+  input,select{font-family:inherit;font-size:13px}
+  .app{display:grid;grid-template-columns:clamp(400px,34vw,540px) 1fr;min-height:100vh}
+
+  /* ---------- INPUT RAIL ---------- */
+  .rail{background:var(--ink);color:#EDEDED;padding:18px 16px 60px;overflow-y:auto;max-height:100vh}
+  .brand{display:flex;align-items:baseline;gap:8px}
+  .brand b{font-size:19px;letter-spacing:.14em;color:#fff}
+  .brand span{font-size:10px;color:var(--green);letter-spacing:.1em;text-transform:uppercase}
+  .rsub{font-size:12px;color:#cfcfcf;font-weight:700;margin-top:1px}
+  .rtag{font-size:10.5px;color:#8f9191;margin:2px 0 14px}
+  .grp{margin-bottom:16px;border-top:1px solid #2b2b2b;padding-top:12px}
+  .grp h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--green);margin-bottom:9px}
+  .fld{margin-bottom:8px}
+  .fld label{display:block;font-size:10.5px;color:#8f9191;margin-bottom:3px}
+  .fld input,.fld select{width:100%;padding:7px 8px;border:1px solid #333;border-radius:6px;background:#1e1e1e;color:#fff}
+  .fld input:focus,.fld select:focus{outline:2px solid var(--green);border-color:var(--green)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .modebtns{display:flex;gap:5px;margin-bottom:4px}
+  .modebtns button{flex:1;background:#242424;border:1px solid #383838;color:#cfcfcf;border-radius:6px;padding:7px 3px;font-size:11px}
+  .modebtns button.on{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
+  .plantabs{display:flex;gap:5px;margin-bottom:8px}
+  .plantabs button{flex:1;background:#242424;border:1px solid #383838;color:#cfcfcf;border-radius:6px;padding:6px 3px;font-size:11px}
+  .plantabs button.on{background:#333;border-color:var(--green);color:#fff}
+  .presets{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+  .presets button{flex:1;min-width:0;background:#242424;border:1px solid #383838;color:#cfcfcf;border-radius:6px;padding:6px 3px;font-size:10px}
+  .presets button:hover{border-color:var(--green);color:#fff}
+  .loads{font-size:12.5px}
+  .lrow{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:6px 7px;margin-bottom:5px}
+  .lrow .r1{display:flex;gap:5px;align-items:center;margin-bottom:5px}
+  .lrow .r1 input{flex:1;min-width:0}
+  .lrow .r2{display:grid;grid-template-columns:56px 50px 84px 52px 24px 24px;gap:5px;align-items:center}
+  .lrow .fl{display:flex;flex-direction:column;gap:1px}
+  .lrow .fl span{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#7a7c7c}
+  .lrow .va input{font-weight:700;font-size:13px;color:#fff}
+  .lrow .va.man input{color:var(--amber);border-color:#6b4a05}
+  .lrow .manflag{font-size:8px;color:var(--amber);letter-spacing:.03em}
+  .lrow .del{background:none;border:1px solid #3a3a3a;color:#777;border-radius:5px;font-size:13px;line-height:1;padding:4px 0;width:100%}
+  .lrow .del:hover{border-color:var(--red);color:var(--red)}
+  .lrow .rv{background:none;border:none;color:#7a7c7c;font-size:11px;padding:0;text-align:left}
+  .lrow .rv:hover{color:var(--green)}
+  .catlabel{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--green);margin:8px 0 3px;font-weight:700}
+  .lrow{margin-bottom:3px}
+  .lrow input[type=text]{padding:5px 6px;border:1px solid #303030;border-radius:5px;background:#141414;color:#e7e7e7;width:100%}
+  .lrow input[type=number]{padding:5px 4px;border:1px solid #303030;border-radius:5px;background:#141414;color:#e7e7e7;width:100%;text-align:right}
+  .lrow select{padding:5px 2px;border:1px solid #303030;border-radius:5px;background:#141414;color:#e7e7e7;width:100%;font-size:12px}
+  .lrow .mgd{display:flex;justify-content:center}
+  .lrow input[type=checkbox]{accent-color:var(--green);width:15px;height:15px;cursor:pointer}
+  .addbtn{margin-top:6px;background:#242424;border:1px dashed #3a3a3a;color:#aaa;border-radius:6px;padding:6px;width:100%;font-size:11px}
+  .addbtn:hover{border-color:var(--green);color:var(--green)}
+  .note{font-size:9.5px;color:#7f8181;margin-top:6px;line-height:1.4}
+  .fut{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:11.5px}
+  .fut label{display:flex;align-items:center;gap:6px;color:#cfcfcf;cursor:pointer;padding:2px 0}
+  .fut input{accent-color:var(--green);width:14px;height:14px}
+  .mfgate{background:#231a0a;border:1px solid #5c4409;border-radius:6px;padding:8px;font-size:10.5px;color:#e8c877;margin-top:6px}
+  .mfgate label{display:flex;gap:7px;align-items:flex-start;cursor:pointer}
+  .mfgate input{accent-color:var(--amber);margin-top:2px}
+
+  /* ---------- STAGE ---------- */
+  .stage{padding:20px 26px 80px;overflow-y:auto;max-height:100vh}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+  .viewtabs{display:flex;gap:0;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .viewtabs button{border:none;background:#fff;color:var(--grey);padding:9px 18px;font-size:12.5px;font-weight:700}
+  .viewtabs button.on{background:var(--ink);color:#fff}
+  .orient{display:flex;gap:0;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .orient button{border:none;background:#fff;color:var(--grey);padding:9px 14px;font-size:12px;font-weight:700}
+  .orient button.on{background:var(--ink);color:#fff}
+  .print{background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:12.5px}
+  .print:hover{background:var(--green-d)}
+
+  .doc{background:#fff;max-width:1000px;margin:0 auto;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .page{padding:32px 40px}
+  .page+.page{border-top:8px solid var(--panel2)}
+  /* Cover is intentionally light: minimal toner/ink when a builder prints it. */
+  .cover{background:#fff;color:var(--ink);min-height:9.3in;display:flex;flex-direction:column;justify-content:space-between;padding:44px 46px;border-top:9px solid var(--green)}
+  .cvbrand{font-size:14px;letter-spacing:.2em;font-weight:700;color:var(--ink)}
+  .cvbrand span{color:var(--green-d);letter-spacing:.14em;font-weight:400;font-size:11px}
+  .cvmid{padding:22px 0}
+  .cvrule{width:54px;height:4px;background:var(--green);margin-bottom:20px;border-radius:2px}
+  .cvtitle{font-size:64px;line-height:.98;letter-spacing:-.03em;margin:0 0 18px;color:var(--ink)}
+  .cvbuilder{font-size:23px;font-weight:400;color:#333;letter-spacing:-.01em}
+  .cvspec{font-size:16px;color:var(--green-d);font-weight:700;margin-top:9px}
+  .cvplans{font-size:12.5px;color:var(--grey);margin-top:12px}
+  .cvfoot{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;border-top:1.5px solid var(--ink);padding-top:16px}
+  .cvmeta{display:grid;grid-template-columns:repeat(2,auto);gap:14px 40px}
+  .cvm span{display:block;font-size:8.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--grey);margin-bottom:2px}
+  .cvm b{display:block;font-size:12.5px;color:var(--ink);font-weight:700}
+  .cvm i{display:block;font-size:10.5px;color:var(--grey);font-style:normal}
+  .cvyear{font-size:13px;font-weight:700;color:var(--grey);letter-spacing:.05em}
+  .dhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:11px}
+  .dhead .l b{font-size:11px;letter-spacing:.16em}
+  .dhead .l .t{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+  .dhead .l .s{font-size:12.5px;color:var(--grey);margin-top:3px}
+  .dhead .r{text-align:right;font-size:10.5px;color:var(--grey);line-height:1.55}
+  .pill{display:inline-block;color:#fff;font-size:9.5px;letter-spacing:.1em;padding:3px 9px;border-radius:20px;text-transform:uppercase;margin-bottom:4px}
+  .pill.ext{background:var(--ink)} .pill.int{background:var(--red)}
+
+  .sec{margin-top:20px}
+  .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--green);font-weight:700;margin-bottom:5px}
+  .sec h2{font-size:15.5px;margin-bottom:6px}
+  .sec p{margin:0 0 7px;font-size:13px}
+  .teach{border-left:3px solid var(--green);padding:2px 0 2px 12px;font-size:12.5px;margin:8px 0;color:#252525}
+
+  .exec{background:var(--inkwash);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-size:14.5px;font-weight:700;letter-spacing:-.01em;line-height:1.4}
+  .exec.hold{border-left:5px solid var(--green)} .exec.bust{border-left:5px solid var(--red)}
+
+  /* the "I didn't know that" band */
+  .aha{background:var(--ink);color:#fff;border-radius:10px;padding:18px 22px;margin-top:6px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+  .aha .big{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:.9;color:var(--amber)}
+  .aha .msg{flex:1;min-width:240px;font-size:14px;line-height:1.45}
+  .aha .msg b{color:var(--green)}
+
+  /* current design mini-grid */
+  .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:0 26px}
+  .kv .i{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .kv .i .k{color:var(--grey)} .kv .i .v{font-weight:700;text-align:right}
+
+  /* LOAD CALC w/ EMS table — mirrors example artifact */
+  .lc{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px}
+  .lc th{background:var(--ink);color:#fff;text-align:right;padding:7px 10px;font-size:11px;font-weight:700}
+  .lc th.lab{text-align:left;letter-spacing:.02em}
+  .lc td{padding:4px 10px;text-align:right;border-bottom:1px solid #EEE}
+  .lc td.lab{text-align:left;color:#333}
+  .lc tr.grp td{background:#fff;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);font-weight:700;border-bottom:none;padding-top:9px}
+  .lc tr.grp td.lab:before{content:"";display:inline-block;width:4px;height:11px;background:var(--green);margin-right:7px;vertical-align:-1px}
+  .lc tr.sub td{font-weight:700}
+  .lc tr.dim td{color:var(--grey2)}
+  .lc tr.set td{background:var(--redwash);color:var(--red);font-weight:700}
+  .lc tr.prov td{background:var(--greenwash);color:var(--green-d);font-weight:700}
+  .lc .em{font-weight:700;color:var(--ink)}
+  .lcfoot{background:var(--ink);color:#fff;padding:9px 12px;font-size:11.5px;border-radius:0 0 6px 6px}
+  .lcfoot b{color:var(--green);letter-spacing:.06em}
+  .illus{font-size:10px;color:var(--grey);margin-top:5px;font-style:italic}
+
+  /* findings */
+  .find{border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin-bottom:8px;font-size:12.5px}
+  .find .tag{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:4px;margin-right:8px;color:#fff}
+  .tag.decision{background:var(--blue)} .tag.risk{background:var(--amber)} .tag.opp{background:var(--green)}
+  .find b{font-weight:700}
+
+  /* future-ready meter */
+  .fr{display:flex;align-items:center;gap:16px;margin:6px 0}
+  .frdot{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;text-align:center;line-height:1.1;flex-shrink:0}
+  .fr .txt{font-size:13px}
+  .frscale{display:flex;gap:4px;margin-top:8px}
+  .frscale span{flex:1;text-align:center;font-size:10px;padding:5px;border-radius:5px;background:var(--panel);color:var(--grey)}
+  .frscale span.on{color:#fff;font-weight:700}
+
+  /* solves / enables */
+  .se{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}
+  .se .col{border:1px solid var(--line);border-radius:9px;padding:13px 15px}
+  .se .col.solves{border-top:4px solid var(--green)}
+  .se .col.enables{border-top:4px solid var(--blue)}
+  .se .col h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+  .se .col.solves h3{color:var(--green-d)} .se .col.enables h3{color:var(--blue)}
+  .se ul{margin:0;padding-left:16px;font-size:12.5px} .se li{margin-bottom:5px}
+  .se .none{color:var(--grey);font-size:12px;font-style:italic}
+
+  .vitem{font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:9px}
+  .vitem .vr{color:var(--amber);font-weight:700;font-size:10px;letter-spacing:.04em;white-space:nowrap;text-transform:uppercase}
+
+  .next{background:var(--ink);color:#fff;border-radius:11px;padding:18px 22px;margin-top:6px}
+  .next .eyebrow{color:var(--green)} .next h2{color:#fff;font-size:16px;margin-bottom:6px}
+  .next p{color:#dcdcdc;font-size:13px}
+  .step{display:flex;gap:11px;align-items:baseline;margin-top:9px}
+  .step b{color:var(--green);font-size:11px;letter-spacing:.05em;min-width:76px;text-transform:uppercase}
+
+  .disc{font-size:9.8px;color:var(--grey);border-top:1px solid var(--line);margin-top:22px;padding-top:8px;line-height:1.55}
+  .dfull{border:1px solid var(--line);border-left:3px solid var(--ink);border-radius:7px;padding:12px 15px;margin-top:22px;background:var(--panel)}
+  .dfh{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink);margin-bottom:6px}
+  .dfull p{font-size:9.8px;line-height:1.6;color:#3a3a3a;margin:0 0 6px}
+  .dfull p.dfg{margin:0;font-weight:700;color:var(--ink);letter-spacing:.02em}
+  .foot{display:flex;justify-content:space-between;font-size:9px;color:var(--grey2);margin-top:8px}
+
+  /* internal brief */
+  .ib .sec h2{font-size:14px}
+  .ib .block{border-left:3px solid var(--line);padding-left:13px;margin-bottom:14px}
+  .ib .block.tension{border-color:var(--amber)} .ib .block.teach{border-color:var(--green)} .ib .block.risk{border-color:var(--red)}
+  .ib .block h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--grey);margin-bottom:4px}
+  .ib .block p,.ib .block li{font-size:12.5px}
+  .ib ul{margin:4px 0;padding-left:16px} .ib li{margin-bottom:4px}
+  .qa{margin-bottom:8px} .qa .q{font-weight:700;font-size:12.5px} .qa .a{font-size:12.5px;color:#333}
+  .pitchrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .pitchtag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 10px;border-radius:5px;color:#fff;text-transform:uppercase}
+
+  .hideview{display:none}
+
+  .basis{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .basis .bi{padding:9px 11px;display:flex;flex-direction:column;gap:2px}
+  .basis .bi+.bi{border-left:1px solid var(--line)}
+  .basis .bk{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--grey)}
+  .basis .bv{font-size:13.5px;font-weight:700}
+  .verifybar{background:#FFF6E6;border:1px solid #F2D9A6;color:#7a5a12;font-size:10.5px;padding:7px 11px;border-radius:6px;margin-top:8px;line-height:1.45}
+  .lc tr.tot td{font-weight:700;border-top:1.5px solid var(--ink)}
+  .lc tr.amp td{font-weight:700;background:var(--panel)}
+  .qa2{margin-top:10px;border-top:1px solid #2b2b2b;padding-top:10px}
+  .qahead{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--green);font-weight:700;margin-bottom:7px}
+  .qahead span{text-transform:none;letter-spacing:0;color:#7f8181;font-weight:400;font-size:9.5px}
+  .qagrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .qagrid button{background:#242424;border:1px solid #383838;color:#cfcfcf;border-radius:6px;padding:6px 6px;font-size:10.5px;text-align:left;line-height:1.25}
+  .qagrid button:hover{border-color:var(--green);color:#fff}
+  .qagrid button i{color:var(--amber);font-style:normal;font-size:9px}
+  .poolbox{background:#181818;border:1px solid #2e2e2e;border-radius:7px;padding:9px;margin-top:6px}
+  .poolbox .pl{display:flex;gap:7px;align-items:flex-start;font-size:11px;color:#cfcfcf;padding:3px 0;cursor:pointer}
+  .poolbox .pl input{accent-color:var(--green);margin-top:2px}
+  .poolbox .pl b{color:#8a8c8c;font-weight:400;font-size:9.5px}
+  .poolbox .pf{display:grid;grid-template-columns:1fr 62px;gap:6px;align-items:end;margin-top:8px;border-top:1px solid #2a2a2a;padding-top:8px}
+  .poolbox .pf label{font-size:9.5px;color:#8f9191}
+  .poolbox .pf input{padding:5px;border:1px solid #303030;border-radius:5px;background:#141414;color:#fff;width:100%;text-align:right}
+  .lrow .est{font-size:8px;color:var(--amber);letter-spacing:.03em;margin-left:4px}
+  .oldrop{border:1.5px dashed #3a3a3a;border-radius:8px;padding:14px 10px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+  .oldrop:hover{border-color:var(--green)}
+  .oldrop.over{border-color:var(--green);background:#12211a}
+  .olhint{font-size:10.5px;color:#8f9191;line-height:1.5}
+  .olhint b{color:#cfcfcf;font-size:11px}
+  .olprev{margin-top:7px;background:#181818;border:1px solid #2e2e2e;border-radius:8px;padding:8px}
+  .olprev img{width:100%;height:auto;display:block;border-radius:4px;background:#fff}
+  .olmeta{font-size:9.5px;color:#8f9191;margin-top:6px;display:flex;justify-content:space-between;gap:8px}
+  .olbtns{display:flex;gap:5px;margin-top:7px}
+  .olbtns button{flex:1;background:#242424;border:1px solid #383838;color:#cfcfcf;border-radius:6px;padding:6px;font-size:10.5px}
+  .olbtns button:hover{border-color:var(--green);color:#fff}
+  .olbtns button.rm:hover{border-color:var(--red);color:var(--red)}
+  .olerr{background:#2a1418;border:1px solid #5c2430;color:#e88fa5;font-size:10.5px;padding:8px;border-radius:6px;margin-top:7px;line-height:1.45}
+  .exwrap{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:9px;padding:12px 14px 0;background:#fff}
+  .exwm{position:absolute;inset:0;pointer-events:none;user-select:none;z-index:2;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .exwm span{font-size:clamp(52px,12vw,124px);font-weight:800;letter-spacing:.16em;color:rgba(20,20,20,.11);transform:rotate(-24deg);white-space:nowrap;line-height:1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .exwrap .lc,.exwrap .exhead,.exwrap .lcfoot{position:relative;z-index:1}
+  .exhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-bottom:1.5px solid var(--ink);padding-bottom:7px;margin-bottom:2px}
+  .exhead .t{font-size:13px;font-weight:700}
+  .exhead .m{font-size:10.5px;color:var(--grey);text-align:right;line-height:1.5}
+  .exbadge{display:inline-block;background:var(--ink);color:#fff;font-size:9px;letter-spacing:.14em;padding:3px 9px;border-radius:3px;text-transform:uppercase;margin-bottom:6px}
+  .olfig{margin-top:6px;border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff}
+  .olfig img{max-width:100%;height:auto;display:block;margin:0 auto}
+  .olcap{font-size:11px;font-weight:700;color:var(--ink);margin-top:9px;text-align:center;letter-spacing:.03em}
+  .olnote{font-size:10px;color:var(--grey);font-style:italic;text-align:center;margin-top:3px;line-height:1.45}
+  .prof{margin-bottom:9px}
+  .profhead{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--green);font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .profhead span{text-transform:none;letter-spacing:0;font-weight:400;font-size:9.5px;color:#8f9191;text-align:right}
+  .presets button.on{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
+  .presets button.mixed{border-color:var(--amber);color:var(--amber)}
+  .profdiff{background:#12211a;border:1px solid #1e4531;border-radius:7px;padding:8px 9px;margin-top:6px;font-size:10.5px;color:#cfe8db;line-height:1.5}
+  .profdiff b{color:var(--green)}
+  .profdiff ul{margin:4px 0 0;padding-left:15px}
+  .profdiff li{margin-bottom:2px}
+  .profdiff .x{color:#e88fa5}
+  .basistbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px}
+  .basistbl th{text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--grey);border-bottom:1.5px solid var(--ink);padding:5px 7px}
+  .basistbl th.l,.basistbl td.l{text-align:left}
+  .basistbl td{padding:6px 7px;text-align:right;border-bottom:1px solid var(--line)}
+  .basistbl td b{font-weight:700}
+  .basistbl .prov{font-size:9.5px;color:var(--grey)}
+  .basistbl .over{color:var(--red);font-weight:700}
+  .basistbl .under{color:var(--green-d);font-weight:700}
+  .pucfg{background:#12211a;border:1px solid #1e4531;border-radius:7px;padding:9px;margin-top:8px}
+  .pulabel{font-size:10.5px;font-weight:700;color:var(--green);letter-spacing:.04em;margin-bottom:6px}
+  .purow{display:flex;gap:6px;align-items:center;font-size:11px;color:#cfcfcf}
+  .purow input{width:52px;padding:4px;border:1px solid #2a4a38;border-radius:5px;background:#0d1a14;color:#fff;text-align:right}
+  .purow b{color:var(--green);font-size:13px}
+  .pugrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+  .pucard{border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+  .pucard.noem{border-top:4px solid var(--grey)}
+  .pucard.withpu{border-top:4px solid var(--green);background:var(--greenwash)}
+  .pucard.verdict{border-top:4px solid var(--blue)}
+  .pucard h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--grey);margin-bottom:7px}
+  .pucard .n{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .pucard.withpu .n{color:var(--green-d)}
+  .pucard .sm{font-size:11px;color:var(--grey);margin-top:6px;line-height:1.4}
+  .pucard .li{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-bottom:1px solid var(--line)}
+  .pucard .li:last-child{border-bottom:none}
+  .pucard .li b{font-variant-numeric:tabular-nums}
+  .puverd{font-size:12.5px;font-weight:700;padding:7px 10px;border-radius:6px;margin-top:8px}
+  .puverd.ok{background:var(--greenwash);color:var(--green-d)}
+  .puverd.no{background:var(--redwash);color:var(--red)}
+  .pumech{border-left:3px solid var(--green);padding:3px 0 3px 12px;font-size:12px;margin-top:10px;color:#252525}
+  svg .sfut{fill:#DCEFF7} svg .srem{fill:#E7F6EE}
+  .nofut{font-size:11.5px;color:var(--grey);background:var(--panel);border:1px dashed var(--line);border-radius:7px;padding:10px 12px;margin-top:4px}
+  .chips{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .chl{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#c47600;margin-right:2px}
+  .chip{font-size:10px;color:#c47600;background:#FFF6E9;border:1px solid #FF9500;border-radius:10px;padding:2px 9px}
+  .futnote{font-size:11.5px;color:#333;margin-top:9px;border-left:3px solid var(--blue);padding-left:11px;line-height:1.5}
+  .futnote b{color:var(--ink)}
+  svg .sgen{fill:#6F7070} svg .shvac{fill:#00B0D3} svg .scont{fill:#FF9500}
+  svg .sover{fill:rgba(247,42,99,.28)} svg .strack{fill:var(--panel2)}
+  .chartblk{margin-bottom:14px}
+  .chartblk h3{font-size:12.5px;margin-bottom:2px}
+  .chartblk .csub{font-size:10.5px;color:var(--grey);margin-bottom:2px}
+  svg.cap{width:100%;height:auto;display:block;margin-top:4px}
+  .caplegend{display:flex;gap:15px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#444}
+  .caplegend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .lbars{margin-top:6px}
+  .lbar{display:grid;grid-template-columns:172px 1fr 42px;align-items:center;gap:10px;margin-bottom:6px;font-size:12px}
+  .lbar .ll{color:#333}
+  .lbar .lt{background:var(--panel2);border-radius:4px;height:16px;overflow:hidden}
+  .lbar .lf{height:100%;border-radius:4px}
+  .lbar .lv{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  /* ---------- PRINT ---------- */
+  @media print{
+    body{background:#fff;font-size:10.5px}
+    .app{display:block}
+    .rail,.toolbar{display:none!important}
+    .stage{padding:0;max-height:none;overflow:visible}
+    .doc{box-shadow:none;max-width:none;margin:0}
+    .page{padding:0 0 8px}
+    .page+.page{border-top:none;page-break-before:always}
+    .sec,.aha,.lc,.next,.se,.kv,.exec,.fr{page-break-inside:avoid}
+    html[data-orient="landscape"] .basis{grid-template-columns:repeat(3,1fr)}
+    html[data-orient="landscape"] .pugrid{grid-template-columns:repeat(3,1fr)}
+    html[data-orient="landscape"] .kv{grid-template-columns:repeat(2,1fr)}
+    html[data-orient="landscape"] .olfig img{max-height:4.4in}
+    /* --- ink minimisation: no large dark fills on paper --- */
+    .cover{min-height:9.2in;page-break-after:always;page-break-inside:avoid;background:#fff!important;color:#141414!important;border-top:6pt solid #0CB560}
+    .aha{background:#fff!important;color:#141414!important;border:1px solid #DADCDC;border-left:4pt solid #FF9500}
+    .aha .big{color:#c47600!important}
+    .aha .msg,.aha .msg b{color:#141414!important}
+    .next{background:#fff!important;color:#141414!important;border:1px solid #DADCDC;border-left:4pt solid #0CB560}
+    .next h2,.next p,.next .step span{color:#141414!important}
+    .next .eyebrow,.next .step b{color:#0a9a52!important}
+    .lc th{background:#EFEFEF!important;color:#141414!important;border-bottom:1.2pt solid #141414}
+    .lcfoot{background:#F5F6F6!important;color:#141414!important;border:1px solid #DADCDC;border-left:4pt solid #0CB560}
+    .lcfoot b{color:#0a9a52!important}
+    .pill.ext,.pill.int{background:#fff!important;color:#141414!important;border:1px solid #141414}
+    .exbadge{background:#fff!important;color:#141414!important;border:1px solid #6F7070}
+    .frdot{background:#fff!important;color:#141414!important;border:2px solid #6F7070}
+    .badge.hold,.badge.bust{background:#fff!important;border:1px solid #141414;color:#141414!important}
+    .dfull{background:#fff!important}
+    /* lighter chart tints so a full-colour print stays cheap */
+    svg .sgen{fill:#D9DBDB} svg .shvac{fill:#C4E9F3} svg .scont{fill:#FFE2BC}
+    svg .sover{fill:#FBDCE5} svg .strack{fill:#F2F3F3}
+    svg .sfut{fill:#EAF6FB} svg .srem{fill:#F0FAF4}
+    .chip{background:#fff!important}
+    html[data-orient="landscape"] .cover{min-height:6.9in;padding:34px 40px}
+    html[data-orient="landscape"] .cvtitle{font-size:54px}
+    .exwrap{page-break-inside:avoid;border:1px solid #ccc}
+    .exwm span{font-size:92pt!important;color:rgba(20,20,20,.14)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .olfig{page-break-inside:avoid;border:1px solid #ccc}
+    .olfig img{max-width:100%;max-height:6.2in;height:auto;width:auto}
+    body.print-builder #outBrief{display:none!important}
+    body.print-internal #outBuilder{display:none!important}
+  }
+  @media(max-width:900px){.app{grid-template-columns:1fr}.rail,.stage{max-height:none}}
+</style>
+</head>
+<body class="print-builder">
+<div class="app">
+  <!-- ============ INPUT RAIL ============ -->
+  <aside class="rail">
+    <div class="brand"><b>SPAN</b><span>Energy Intelligence</span></div>
+    <div class="rsub">Builder Design Review</div>
+    <div class="rtag">Internal tool · SPAN lens · preliminary · non-cost</div>
+
+    <div class="grp">
+      <h4>Review Mode</h4>
+      <div class="modebtns">
+        <button id="m-compare" class="on" onclick="setMode('compare')">Compare S/L</button>
+        <button id="m-single" onclick="setMode('single')">Single plan</button>
+        <button id="m-mf" onclick="setMode('mf')">Multifamily</button>
+      </div>
+      <div class="note" id="modenote">Compare the builder's smallest and largest plan — the largest carries the options that expose the service gap.</div>
+    </div>
+
+    <div class="grp">
+      <h4>Project</h4>
+      <div class="fld"><label>Builder / community</label><input id="builder" value="Builder — Series"></div>
+      <div class="row2">
+        <div class="fld"><label>State</label><select id="state"></select></div>
+        <div class="fld"><label>Homes in community</label><input id="homes" type="number" value="150"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>AHJ / jurisdiction</label><input id="ahj" placeholder="city / county"></div>
+        <div class="fld"><label>Utility</label><input id="utility" placeholder="utility"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Prepared by</label><input id="prepby" placeholder="your name"></div>
+        <div class="fld"><label>Role / title</label><input id="preprole" placeholder="optional"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>NEC edition</label><select id="edition"><option>2020</option><option>2023</option><option>2026</option></select></div>
+        <div class="fld"><label>Calculation method</label><select id="method"><option value="optional">Optional</option><option value="standard">Standard</option></select></div>
+      </div>
+      <div class="note" id="editionnote"></div>
+      <div class="fld" id="mfunits" style="display:none"><label>Number of dwelling units</label><input id="units" type="number" value="12"></div>
+      <div class="mfgate" id="mfgatebox" style="display:none">
+        <label><input type="checkbox" id="mfqual"><span>Confirmed: each unit has electric cooking <b>and</b> electric heat and/or A/C, and no unit is on more than one feeder (NEC <span id="mfsec">220.84</span> qualifying conditions). <b>[VERIFY WITH AHJ]</b></span></label>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h4>Plans</h4>
+      <div class="plantabs" id="plantabs">
+        <button class="on" onclick="setPlan(0)" id="pt0">Smallest</button>
+        <button onclick="setPlan(1)" id="pt1">Largest</button>
+      </div>
+      <div class="prof">
+        <div class="profhead">Home profile <span id="provtag"></span></div>
+        <div class="presets">
+          <button id="pf-small" onclick="applyProfile('small')">Small / Base</button>
+          <button id="pf-large" onclick="applyProfile('large')">Large / High Electrification</button>
+          <button id="pf-custom" onclick="markCustom()">Custom</button>
+        </div>
+        <div id="profdiff" class="profdiff" style="display:none"></div>
+      </div>
+      <div class="fld"><label>Plan name</label><input id="pname" value="Base plan"></div>
+      <div class="row3">
+        <div class="fld"><label>Sq ft</label><input id="psqft" type="number" value="1850"></div>
+        <div class="fld"><label>Main / service</label><select id="pservice"><option>125</option><option>150</option><option selected>200</option></select></div>
+        <div class="fld"><label>PowerUp setpoint %</label><input id="ppct" type="number" value="80"></div>
+      </div>
+      <div class="loads">
+        <div id="loadrows"></div>
+        <button class="addbtn" onclick="addRow()">+ Add blank load</button>
+      </div>
+      <div class="qa2">
+        <div class="qahead">Quick add <span>editable planning defaults</span></div>
+        <div class="qagrid" id="qagrid"></div>
+        <button class="addbtn" style="margin-top:5px" onclick="togglePool()">+ Pool equipment / subpanel…</button>
+        <div id="poolbox" class="poolbox" style="display:none"></div>
+        <div class="note">${""}</div>
+      </div>
+      <div class="note" id="planningtip"></div>
+      <div class="pucfg">
+        <div class="pulabel">SPAN PowerUp\u2122 Energy Management</div>
+        <div class="purow"><span>Setpoint</span><input id="ppct2" type="number" value="80"><span>% of service =</span><b id="pusetA">160A</b></div>
+        <div class="note" style="margin-top:5px">Setpoint is derived from the selected service rating (125A\u2192100A, 150A\u2192120A, 200A\u2192160A) and is editable if project requirements differ.</div>
+      </div>
+      <div class="note">VA updates from <b>volts × amps</b>; type in VA to override (shows MANUAL, with a revert). <b>OCPD</b> is informational — a breaker rating is not a load value. <b>×</b> removes a load entirely.<br><b>PwrUp</b> = eligible for PowerUp management (EV, water heating, pool, battery). PowerUp does not remove these loads \u2014 it controls them so demand stays under the setpoint. Cooking, dryer, refrigeration and lighting are never curtailed.</div>
+    </div>
+
+    <div class="grp">
+      <h4>Project One-Line / Diagram</h4>
+      <div id="oldrop" class="oldrop">
+        <div class="olhint"><b>Drop an image here</b><br>or <u>click to browse</u> \u00b7 or paste from clipboard (Ctrl/Cmd+V)</div>
+        <input type="file" id="olfile" accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf" style="display:none">
+      </div>
+      <div id="olprev" class="olprev" style="display:none"></div>
+      <div id="olerr" class="olerr" style="display:none"></div>
+      <div class="note">PNG, JPG or WebP. The image is shown as provided \u2014 aspect ratio preserved, never cropped, resized or altered. It is not interpreted, read or validated by this tool.</div>
+    </div>
+
+    <div class="grp">
+      <h4>Possible Tomorrow <span style="color:#6f7171;font-weight:400;text-transform:none;letter-spacing:0">(this plan)</span></h4>
+      <div class="fut" id="futbox"></div>
+      <div class="note">Future loads are scored as a separate scenario — never added to the formal calc. They set the Future-Ready rating.</div>
+    </div>
+  </aside>
+
+  <!-- ============ STAGE ============ -->
+  <main class="stage">
+    <div class="toolbar">
+      <div class="viewtabs">
+        <button id="v-builder" class="on" onclick="setView('builder')">Builder Design Review</button>
+        <button id="v-brief" onclick="setView('brief')">Internal Sales Brief</button>
+      </div>
+      <div class="orient">
+        <button id="or-portrait" class="on" onclick="setOrient('portrait')">Portrait</button>
+        <button id="or-landscape" onclick="setOrient('landscape')">Landscape</button>
+      </div>
+      <button class="print" onclick="doPrint()">Save current view as PDF</button>
+    </div>
+    <div class="doc" id="outBuilder"></div>
+    <div class="doc hideview" id="outBrief"></div>
+  </main>
+</div>
+
+<script>
+/* =======================================================
+   STATE MATRIX (SPAN_State_Pitch_Matrix.xlsx, May 2026)
+   ======================================================= */
+const STATES={
+"Alabama":{nec:"2017",eff:"2020",mandate:"None statewide",batt:"Tornado / Gulf storm backup",pitch:"Low-Med"},
+"Alaska":{nec:"2020",eff:"2020",mandate:"Renewable Energy Fund",batt:"Off-grid + outage resilience",pitch:"Low"},
+"Arizona":{nec:"2017",eff:"Varies by AHJ",mandate:"APS/SRP voluntary clean-energy targets",batt:"Extreme heat + TOU + demand charges",pitch:"HIGH"},
+"Arkansas":{nec:"2017",eff:"2017",mandate:"None",batt:"Tornado backup",pitch:"Low"},
+"California":{nec:"2020 (CEC 2022 amendments)",eff:"2023",mandate:"Title 24 solar+storage; NEM 3.0",batt:"PSPS + NEM 3.0 + TOU + SGIP",pitch:"HIGHEST"},
+"Colorado":{nec:"2023",eff:"2023",mandate:"HB21-1238 GHG; Clean Heat Plan",batt:"Wildfire PSPS + Xcel TOU",pitch:"HIGH"},
+"Connecticut":{nec:"2020",eff:"2022",mandate:"Zero-carbon electricity by 2040",batt:"High rates + storm",pitch:"Med-High"},
+"Delaware":{nec:"2017",eff:"2018",mandate:"RPS 40% by 2035",batt:"Storm backup",pitch:"Low-Med"},
+"Florida":{nec:"2020 (FBC-E 2023)",eff:"Dec 2023",mandate:"No state mandate; utility battery programs",batt:"Hurricane backup (Ian, Idalia)",pitch:"HIGH"},
+"Georgia":{nec:"2020",eff:"2021",mandate:"Georgia Power voluntary IRP",batt:"Storm + EV growth (Hyundai, Rivian, Kia)",pitch:"Med"},
+"Hawaii":{nec:"2017",eff:"Varies",mandate:"100% renewable 2045; HECO solar+storage required",batt:"Highest US rates + no NEM",pitch:"HIGHEST"},
+"Idaho":{nec:"2020",eff:"2023",mandate:"None statewide",batt:"Wildfire + TOU emerging",pitch:"Low-Med"},
+"Illinois":{nec:"2020 (Chicago=CEC)",eff:"2022",mandate:"CEJA 100% clean 2050; storage rebate",batt:"ComEd/Ameren rates + IL Shines",pitch:"Med-High"},
+"Indiana":{nec:"2008 (residential, lagging)",eff:"2017",mandate:"None",batt:"Storm/tornado",pitch:"Low"},
+"Iowa":{nec:"2020",eff:"2022",mandate:"None significant",batt:"Tornado + derecho memory",pitch:"Low-Med"},
+"Kansas":{nec:"2017 (no statewide)",eff:"Varies",mandate:"None",batt:"Tornado backup",pitch:"Low"},
+"Kentucky":{nec:"2020",eff:"2022",mandate:"None",batt:"Tornado + Ford BlueOval growth",pitch:"Low-Med"},
+"Louisiana":{nec:"2017",eff:"2018",mandate:"Climate Action Plan (advisory)",batt:"Hurricane + Entergy outages (Ida)",pitch:"HIGH"},
+"Maine":{nec:"2023",eff:"2024",mandate:"175k more heat pumps by 2027; 100% clean 2050",batt:"Storm + grid stress",pitch:"HIGH"},
+"Maryland":{nec:"2020",eff:"2023",mandate:"Climate Solutions Now 60% by 2031",batt:"Storm + TOU pilots",pitch:"Med-High"},
+"Massachusetts":{nec:"2023",eff:"Jan 2024",mandate:"Net-Zero Stretch Code; Specialized Opt-In",batt:"Storm + ConnectedSolutions",pitch:"HIGH"},
+"Michigan":{nec:"2017",eff:"2021",mandate:"100% clean by 2040",batt:"Ice storms + utility outages",pitch:"Med"},
+"Minnesota":{nec:"2020",eff:"2023",mandate:"Carbon-free electricity by 2040",batt:"Cold-weather backup + Xcel TOU",pitch:"Med"},
+"Mississippi":{nec:"2017",eff:"Varies",mandate:"None",batt:"Hurricane / tornado",pitch:"Low-Med"},
+"Missouri":{nec:"2017 (no statewide)",eff:"Varies",mandate:"None significant",batt:"Tornado / storms",pitch:"Low"},
+"Montana":{nec:"2023",eff:"2024",mandate:"None",batt:"Wildfire growing",pitch:"Low"},
+"Nebraska":{nec:"2020",eff:"2023",mandate:"None",batt:"Tornado + TOU emerging",pitch:"Low"},
+"Nevada":{nec:"2020",eff:"2022",mandate:"RPS 50% by 2030",batt:"Heat + NV Energy TOU/demand",pitch:"HIGH"},
+"New Hampshire":{nec:"2020",eff:"2022",mandate:"Limited; Eversource voluntary",batt:"Ice-storm backup",pitch:"Med"},
+"New Jersey":{nec:"2020",eff:"2021",mandate:"100% clean by 2050; Energy Master Plan",batt:"Sandy memory + TOU emerging",pitch:"HIGH"},
+"New Mexico":{nec:"2023",eff:"2024",mandate:"Energy Transition Act 100% by 2045",batt:"Wildfire + heat",pitch:"Med"},
+"New York":{nec:"2020 (NYC amendments)",eff:"2020",mandate:"CLCPA; All-Electric Building Act (<7 stories 2026)",batt:"NYSERDA + utility programs + storm",pitch:"HIGHEST"},
+"North Carolina":{nec:"2017",eff:"2018",mandate:"HB 951 — Duke 70% by 2030",batt:"Hurricane + EV growth",pitch:"Med"},
+"North Dakota":{nec:"2023",eff:"2024",mandate:"None",batt:"Cold-weather backup",pitch:"Low"},
+"Ohio":{nec:"2017 (RCO)",eff:"2018",mandate:"None significant",batt:"Derecho + utility outages",pitch:"Med"},
+"Oklahoma":{nec:"2020",eff:"2023",mandate:"None",batt:"Tornado / ice storm",pitch:"Low-Med"},
+"Oregon":{nec:"2023",eff:"2023",mandate:"HB 2021 100% clean 2040; reach codes",batt:"PSPS + wildfire",pitch:"HIGH"},
+"Pennsylvania":{nec:"2017 (some AHJ 2020)",eff:"Varies",mandate:"Climate Action Plan (advisory)",batt:"Storm + utility outages",pitch:"Med"},
+"Rhode Island":{nec:"2020",eff:"2023",mandate:"Act on Climate 100% renewable 2033",batt:"Storm + National Grid programs",pitch:"Med-High"},
+"South Carolina":{nec:"2023",eff:"2024",mandate:"Limited; utility voluntary",batt:"Hurricane + grid resilience",pitch:"Med"},
+"South Dakota":{nec:"2017",eff:"2018",mandate:"None",batt:"Tornado",pitch:"Low"},
+"Tennessee":{nec:"2020",eff:"2022",mandate:"None",batt:"Storm + EV plants",pitch:"Low-Med"},
+"Texas":{nec:"2020",eff:"2023",mandate:"None statewide (REP market)",batt:"ERCOT events + TOU",pitch:"HIGH"},
+"Utah":{nec:"2020",eff:"2023",mandate:"Limited; utility voluntary",batt:"Wildfire + heat",pitch:"Med"},
+"Vermont":{nec:"2020",eff:"2023",mandate:"Clean Heat Standard; heat-pump rebates",batt:"GMP Bring-Your-Own-Device VPP",pitch:"HIGH"},
+"Virginia":{nec:"2020 (VUSBC)",eff:"2021",mandate:"VCEA 100% renewable by 2050",batt:"Storm + Dominion TOU",pitch:"Med"},
+"Washington":{nec:"2023",eff:"2024",mandate:"CETA 100% clean 2045; heat-pump preference",batt:"PSPS + wildfire + storm",pitch:"HIGH"},
+"West Virginia":{nec:"2020",eff:"2022",mandate:"None",batt:"Storm backup",pitch:"Low"},
+"Wisconsin":{nec:"2017",eff:"2018",mandate:"Limited",batt:"Storm + ice",pitch:"Low-Med"},
+"Wyoming":{nec:"2017",eff:"2018",mandate:"None",batt:"Wildfire emerging",pitch:"Low"}
+};
+const PITCHC={"HIGHEST":"#0CB560","HIGH":"#0a9a52","Med-High":"#00B0D3","Med":"#6F7070","Low-Med":"#9AA0A0","Low":"#B7BCBC"};
+
+/* =========================================================
+   NEC_RULES[edition][...] — centralized, edition-specific.
+   verify:true  => not confirmed against the code book; UI must show VERIFY.
+   Never render a section number from another edition.
+   ========================================================= */
+const NEC_RULES={
+ "2020":{ label:"2020 NEC", article:"220", chapter:"Chapter 2",
+   optional:{ sec:"220.82", name:"Optional (dwelling)" },
+   standard:{ sec:"220 Part III", name:"Standard (dwelling)" },
+   lightingUnitVA:3, lightingUnit:"220.12", lighting:"220.42",   /* reviewed Aug 2026 */
+   appliances:"220.53", dryer:"220.54", range:"220.55",
+   noncoincident:"220.60", multifamily:"220.84",
+   ems:"750.30(C)", evse:"625.42", pcs:null, verify:false, confirmed:[] },
+ "2023":{ label:"2023 NEC", article:"220", chapter:"Chapter 2",
+   optional:{ sec:"220.82", name:"Optional (dwelling)" },
+   standard:{ sec:"220 Part III", name:"Standard (dwelling)" },
+   lightingUnitVA:3, lightingUnit:"220.41", lighting:"220.45",   /* 2023 renumbering reviewed Aug 2026 */
+   appliances:"220.53", dryer:"220.54", range:"220.55",
+   noncoincident:"220.60", multifamily:"220.84",
+   ems:"750.30", evse:"625.42", evseCalc:"220.57", pcs:"705.13", verify:false, confirmed:[] },
+ "2026":{ label:"2026 NEC", article:"120", chapter:"Chapter 1",
+   optional:{ sec:"120.82", name:"Optional (dwelling)" },
+   standard:{ sec:"120 Part III", name:"Standard (dwelling)" },
+   lightingUnitVA:2, lightingUnit:"120.41", lighting:"120.45",
+   appliances:"120.53", dryer:"120.54", range:"120.55",
+   noncoincident:"120.60", multifamily:"120.84",
+   ems:"750.30", evse:"625.42", pcs:"705.13", verify:true,
+   confirmed:["optional","multifamily","lightingUnit","lightingUnitVA"],
+   note:"2026 NEC relocated the load-calculation rules from Article 220 (Chapter 2) into Article 120 (Chapter 1). Confirmed: 120.82 optional dwelling, 120.84 optional multifamily, and the general lighting unit load reduced to 2 VA/ft\u00b2 at 120.41. Remaining Article 120 section numbers are mapped by analogy and REQUIRE VERIFICATION." }
+};
+let EDITION="2020";
+let METHOD="optional";
+const R=()=>NEC_RULES[EDITION];
+/* section ref helper: appends VERIFY when the mapping is unconfirmed */
+function ref(key){
+  const r=R(); let v=r[key];
+  if(v&&typeof v==="object")v=v.sec;
+  if(!v)return null;
+  const ok = !r.verify || (r.confirmed||[]).indexOf(key)>-1;
+  return ok ? v : v+" [VERIFY]";
+}
+function methodRef(){ return ref(METHOD); }
+function lightingUnitVA(){ return R().lightingUnitVA; }
+function methodName(){ return (METHOD==="optional"?"Optional":"Standard")+" — NEC "+methodRef(); }
+/* Panel naming: state the rating only when it is a 200A system; otherwise the
+   product is simply a Smart Panel (225A busbar / 200A max main regardless of
+   the service it is applied to). */
+function panelName(service){ return (service===200?"200A Smart Panel":"Smart Panel"); }
+/* Full disclaimer — placed ONCE on the final page so it is complete without
+   dominating the document. Earlier pages carry a one-line pointer. */
+function disclaimerFull(){
+  return `<div class="dfull">
+    <div class="dfh">Design Review Disclaimer</div>
+    <p>This document is provided by SPAN Energy Intelligence for preliminary design review, planning, and discussion purposes only. It is not a final electrical design, stamped engineering document, permit document, or substitute for a project-specific electrical load calculation.</p>
+    <p>SPAN is not the Engineer of Record for the project. Final system design, equipment selection, conductor sizing, overcurrent protection, service and feeder sizing, load calculations, code compliance, utility requirements, installation methods, and permitting remain the responsibility of the project's qualified design professionals, electrical contractor, utility, and Authority Having Jurisdiction (AHJ), as applicable.</p>
+    <p>NEC requirements vary by adopted code edition, local amendments, project conditions, equipment nameplate data, utility requirements, and AHJ interpretation. All values identified as typical, assumed, estimated, example, or planning values must be verified before being used for construction or permitting.</p>
+    <p class="dfg">AHJ and utility approval govern.</p>
+  </div>`;
+}
+function disclaimerShort(){
+  return `<div class="disc"><b>Preliminary design review \u2014 not an engineered design, stamped calculation, or permit document.</b> SPAN is not the Engineer of Record. Full disclaimer on the final page.</div>`;
+}
+function panelFull(service){ return panelName(service)+" with SPAN Energy Intelligence"; }
+
+/* edition-driven citations (signature kept; edition comes from state) */
+function emsCite(){ return "NEC "+R().ems+" ("+EDITION+")"; }
+function pcsAvail(){ return !!R().pcs; }
+
+/* NEC Table 220.84(C) / 120.84 demand factors.
+   Percentages reviewed and confirmed against the NEC by SPAN SE, Aug 2026.
+   Qualifying conditions still gated in the UI (electric cooking + electric heat
+   and/or A/C per unit) — that is a design condition, not a data question. */
+function mf84factor(n){
+  if(n<3)return null;
+  const t=[[5,45],[7,44],[10,43],[11,42],[13,41],[15,40],[17,39],[20,38],[21,37],[23,36],[25,35],[27,34],[30,33],[32,32],[36,31],[38,30],[42,29],[45,28],[50,27],[55,26],[61,25]];
+  for(const[max,f]of t){if(n<=max)return f/100;}
+  return 0.23;
+}
+
+/* =======================================================
+   LOAD PRESETS
+   ======================================================= */
+const CATS=["General Lighting & Receptacles","Small Appliance & Laundry","Cooking","Dryer","Fastened Appliances","Water Heating","HVAC — Cooling","HVAC — Heating","HVAC — Air Handler","EV & Continuous","Pool / Spa","Battery / ESS","Other / Custom"];
+function GLrow(sf){return{cat:"General Lighting & Receptacles",desc:"General lighting + receptacles",qty:sf,va:lightingUnitVA(),managed:false,glauto:true};}
+const PRESETS={
+ small:(sf)=>[GLrow(sf),
+      {cat:"Small Appliance & Laundry",desc:"Small-appliance branch circuits",qty:2,volts:120,va:1500,managed:false},
+{cat:"Small Appliance & Laundry",desc:"Laundry branch circuit",qty:1,volts:120,va:1500,managed:false},
+{cat:"Cooking",desc:"Electric range (12 kW nameplate)",qty:1,volts:240,va:12000,ocpd:50,managed:false},
+{cat:"Dryer",desc:"Electric dryer",qty:1,volts:240,va:5000,ocpd:30,managed:false},
+   {cat:"Fastened Appliances",desc:"Dishwasher",qty:1,volts:120,va:1500,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Disposal",qty:1,volts:120,va:800,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Microwave",qty:1,volts:120,va:1800,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Refrigerator",qty:1,volts:120,va:800,ocpd:20,managed:false},
+   {cat:"Water Heating",desc:"Heat-pump water heater",qty:1,volts:240,va:4500,ocpd:30,managed:true},
+   {cat:"HVAC — Cooling",desc:"Condenser (MCA×V)",qty:1,volts:240,va:6000,ocpd:40,managed:false},
+   {cat:"HVAC — Air Handler",desc:"Air handler",qty:1,volts:240,va:924,ocpd:20,managed:false},
+   {cat:"EV & Continuous",desc:"Level 2 EV charger (48A continuous)",qty:1,volts:240,va:11520,ocpd:60,managed:true}],
+ large:(sf)=>[GLrow(sf),
+      {cat:"Small Appliance & Laundry",desc:"Small-appliance branch circuits",qty:2,volts:120,va:1500,managed:false},
+{cat:"Small Appliance & Laundry",desc:"Laundry branch circuit",qty:1,volts:120,va:1500,managed:false},
+{cat:"Cooking",desc:"Electric range (12 kW nameplate)",qty:1,volts:240,va:12000,ocpd:50,managed:false},
+{cat:"Cooking",desc:"Wall oven (4.8 kW nameplate)",qty:1,volts:240,va:4800,ocpd:30,managed:false},
+{cat:"Dryer",desc:"Electric dryer",qty:1,volts:240,va:5000,ocpd:30,managed:false},
+   {cat:"Fastened Appliances",desc:"Dishwasher",qty:1,volts:120,va:1500,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Disposal",qty:1,volts:120,va:800,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Microwave",qty:1,volts:120,va:1800,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Refrigerator (×2)",qty:2,volts:120,va:800,ocpd:20,managed:false},
+   {cat:"Fastened Appliances",desc:"Range hood",qty:1,volts:120,va:480,ocpd:15,managed:false},
+   {cat:"Water Heating",desc:"Heat-pump water heater",qty:1,volts:240,va:4500,ocpd:30,managed:true},
+   {cat:"HVAC — Cooling",desc:"Condenser (×2 zones)",qty:2,volts:240,va:6000,ocpd:40,managed:false},
+   {cat:"HVAC — Cooling",desc:"Largest motor +25%",qty:1,volts:240,va:1500,managed:false},
+   {cat:"HVAC — Air Handler",desc:"Air handler (×2)",qty:2,volts:240,va:924,ocpd:20,managed:false},
+   {cat:"EV & Continuous",desc:"Level 2 EV charger (48A continuous)",qty:1,volts:240,va:11520,ocpd:60,managed:true}]
+};
+
+
+/* =========================================================
+   QUICK-ADD LIBRARY — editable planning defaults only.
+   volts/va are starter values; va is per-unit nameplate-equivalent.
+   ocpd is informational (a breaker rating is NOT a load value).
+   mgd:true  = eligible to be managed (user still chooses).
+   est:true  = highly variable equipment; explicitly an estimate.
+   ========================================================= */
+const PLANNING_TIP="Typical planning value only. Actual equipment nameplate data, plans, specifications, manufacturer instructions, applicable NEC requirements, and AHJ requirements govern.";
+const QUICKADD=[
+ {id:"ev",     label:"Level 2 EV charger",     cat:"EV & Continuous", volts:240, va:11520, ocpd:60, mgd:true,  est:false, note:"48 A continuous output (240 V \u00d7 48 A). Continuous load; adjustable-output units are common."},
+ {id:"ev40",   label:"Level 2 EV charger (40A circuit)", cat:"EV & Continuous", volts:240, va:9600, ocpd:50, mgd:true, est:false, note:"32 A continuous output on a 40 A circuit."},
+ {id:"range",  label:"Electric range",        cat:"Cooking",         volts:240, va:12000, ocpd:50, mgd:false, est:false, note:"12 kW nameplate free-standing range; counted per Table 220.55 Column C."},
+ {id:"induct", label:"Induction range",       cat:"Cooking",         volts:240, va:11000, ocpd:50, mgd:false, est:true,  note:"Induction nameplate varies widely by model; verify nameplate."},
+ {id:"oven",   label:"Wall oven",             cat:"Cooking",         volts:240, va:4800,  ocpd:30, mgd:false, est:false, note:"Counts as a separate cooking appliance in the Column C count."},
+ {id:"dryer",  label:"Electric dryer",        cat:"Dryer",           volts:240, va:5000,  ocpd:30, mgd:false, est:false, note:"5 kVA is the minimum value used for a household dryer in the standard method."},
+ {id:"twh",    label:"Tank water heater",     cat:"Water Heating",   volts:240, va:4500,  ocpd:30, mgd:true,  est:false, note:"4.5 kW resistance element, non-simultaneous upper/lower."},
+ {id:"hpwh",   label:"Heat-pump water heater",cat:"Water Heating",   volts:240, va:4500,  ocpd:30, mgd:true,  est:true,  note:"Hybrid units vary: compressor-only draw is far lower than resistance-backup mode. Verify nameplate."},
+ {id:"ac",     label:"Air conditioner",       cat:"HVAC — Cooling",  volts:240, va:6000,  ocpd:40, mgd:false, est:true,  note:"Use MCA \u00d7 voltage from the nameplate; tonnage and SEER change this substantially."},
+ {id:"hp",     label:"Heat pump",             cat:"HVAC — Cooling",  volts:240, va:7200,  ocpd:45, mgd:false, est:true,  note:"Outdoor unit MCA \u00d7 voltage. Heating vs cooling are noncoincident \u2014 larger governs."},
+ {id:"auxheat",label:"Electric aux / backup heat",cat:"HVAC — Heating",volts:240,va:10000,ocpd:60, mgd:false, est:true,  note:"Strip heat is often the governing HVAC load in heating-dominant climates. Verify kW of installed strips."},
+ {id:"ah",     label:"Air handler / blower",  cat:"HVAC — Air Handler",volts:240,va:924,  ocpd:20, mgd:false, est:false, note:"Blower motor only; added to the governing HVAC value."},
+ {id:"spa",    label:"Hot tub / spa",         cat:"Pool / Spa",      volts:240, va:9600,  ocpd:50, mgd:true,  est:true,  note:"Portable spa nameplate varies by heater size and jet count. Verify nameplate."},
+ {id:"fridge2",label:"Additional refrigerator / freezer",cat:"Fastened Appliances",volts:120,va:800,ocpd:20,mgd:false,est:false,note:"Garage or secondary unit."},
+ {id:"basement",label:"Finished basement (+area)",cat:null, addsArea:1000, mgd:false, est:false, note:"Adds 1,000 ft\u00b2 of conditioned area rather than a flat VA placeholder \u2014 finished living space is calculated through the general lighting unit load, not as an appliance. Edit the area field for the actual figure."},
+ {id:"patio",  label:"Patio / outdoor heating",cat:"Other / Custom", volts:240, va:5000,  ocpd:30, mgd:true,  est:true,  note:"Electric radiant patio heat varies widely; often a discretionary, manageable load."},
+ {id:"other",  label:"Other future load",     cat:"Other / Custom",  volts:240, va:0,     ocpd:null,mgd:true,  est:true,  note:"Enter project-specific nameplate data."}
+];
+/* ---- Pool equipment is a SUBPANEL PACKAGE, not one appliance ---- */
+const POOL_PKG=[
+ {id:"pump",   label:"Variable-speed pool pump", volts:230, va:3680, ocpd:20, on:true,  est:false, note:"Representative manufacturer example for a larger VS pump (230 V, 16 A). Not an NEC-required value."},
+ {id:"ctrl",   label:"Pool / spa controls",      volts:120, va:360,  ocpd:15, on:true,  est:true,  note:"Automation/control panel; varies by system."},
+ {id:"sani",   label:"Sanitization / salt system",volts:120,va:600,  ocpd:15, on:true,  est:true,  note:"Salt chlorine generator or equivalent."},
+ {id:"light",  label:"Pool lighting",            volts:120, va:360,  ocpd:15, on:true,  est:true,  note:"LED fixtures draw materially less than legacy incandescent."},
+ {id:"conv",   label:"Convenience / service receptacle",volts:120,va:1500,ocpd:20,on:false,est:false,note:"Required receptacle location where applicable; verify against plans."},
+ {id:"heatpump",label:"Electric pool heat pump (optional)",volts:240,va:7200,ocpd:40,on:false,est:true,note:"Electric pool heating varies substantially and is NOT included by default. Verify nameplate."},
+ {id:"spaequip",label:"Spa equipment (optional)", volts:240, va:9600, ocpd:50, on:false, est:true,  note:"Integrated spa with its own heater."},
+ {id:"cover",  label:"Automatic pool cover (optional)",volts:120,va:600,ocpd:15,on:false,est:true, note:"Motorized cover; intermittent duty."}
+];
+/* Managed-load eligibility by category.
+   Cooking, dryer, refrigeration and general lighting are never curtailed.
+   HVAC compressors ARE eligible: a short curtailment (minutes) does not move room
+   temperature materially, and the unit restarts automatically once demand drops.
+   Eligibility does not mean enrolled — HVAC defaults to OFF and is enrolled only
+   when the project team chooses to, since AHJ/builder acceptance is a design call. */
+const MGD_OK=["EV & Continuous","Pool / Spa","Water Heating","Battery / ESS","Other / Custom",
+              "HVAC — Cooling","HVAC — Heating"];
+function mgdEligible(cat){ return MGD_OK.indexOf(cat)>-1; }
+
+/* future-load definitions: kw(VA), managed, nonManagedFloorImpact */
+/* =========================================================
+   HOME PROFILES — presets that seed area + loads.
+   Applying one is explicit and reported; user edits are never
+   silently discarded (see applyProfile / touch / dirty state).
+   ========================================================= */
+const PROFILES={
+  small:{ label:"Small / Base", name:"Base plan", sqft:1850, service:200,
+          blurb:"Baseline production plan: single HVAC zone, one range, electric dryer, HPWH, one EVSE." },
+  large:{ label:"Large / High Electrification", name:"Largest + options", sqft:3200, service:200,
+          blurb:"Fully optioned plan: two HVAC zones, range + wall oven, second refrigerator, HPWH, one EVSE." }
+};
+const FUTURE=[
+ {id:"ev",label:"Level 2 EV charger",va:11520,managed:true},
+ {id:"ev2",label:"2nd Level 2 EV charger",va:11520,managed:true},
+ {id:"hpwh",label:"Heat-pump water heater",va:4500,managed:true},
+ {id:"induction",label:"Induction cooking",va:3000,managed:false},
+ {id:"spa",label:"Hot tub / spa",va:11520,managed:true},
+ {id:"patio",label:"Patio / space heat",va:5000,managed:false},
+ {id:"basement",label:"Finished basement",va:4000,managed:false},
+ {id:"hvac3",label:"Added HVAC zone",va:5000,managed:true},
+ {id:"adu",label:"ADU (managed subpanel)",va:9000,managed:true},
+ {id:"pool",label:"Pool equipment",va:3000,managed:true},
+ {id:"solar",label:"Solar PV",va:0,managed:true},
+ {id:"battery",label:"Battery storage",va:0,managed:true}
+];
+
+/* =======================================================
+   STATE
+   ======================================================= */
+let MODE="compare";
+let PCT=80;   /* PowerUp setpoint as % of service — project-level configuration */
+let ACTIVE=0;
+let PLANS=[
+ {name:"Base plan",sqft:1850,service:200,pct:80,loads:PRESETS.small(1850),future:{},profile:"small",dirty:false},
+ {name:"Largest + options",sqft:3200,service:200,pct:80,loads:PRESETS.large(3200),future:{ev:false,spa:false,adu:false},profile:"large",dirty:false}
+];
+let VIEW="builder";
+/* ---- Project one-line / diagram: stored as a data URL, never modified ---- */
+let ONELINE=null;   /* {url,name,w,h,type,size} */
+const OL_OK=["image/png","image/jpeg","image/jpg","image/webp"];
+function olError(msg){ const e=$("olerr"); if(!msg){e.style.display="none";return;} e.style.display="block"; e.innerHTML=msg; }
+function olLoadFile(f){
+  if(!f)return;
+  if(f.type==="application/pdf"){
+    olError("<b>PDF not supported in the report.</b> Rendering a PDF page would require an external library, which would compromise this tool being a single self-contained file. Export the sheet as PNG or JPG and drop it here.");
+    return;
+  }
+  if(OL_OK.indexOf(f.type)<0){
+    olError("<b>Unsupported file type"+(f.type?" ("+f.type+")":"")+".</b> Use PNG, JPG or WebP.");
+    return;
+  }
+  olError(null);
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const url=rd.result;
+    /* Show the diagram immediately; the pixel-dimension probe is a non-blocking
+       enhancement so a failed probe can never hide a valid image. */
+    ONELINE={url,name:f.name||"diagram",w:null,h:null,type:f.type,size:f.size||0};
+    renderOneLine(); refresh();
+    try{
+      const img=new Image();
+      img.onload=()=>{ if(ONELINE&&ONELINE.url===url){ ONELINE.w=img.naturalWidth; ONELINE.h=img.naturalHeight; renderOneLine(); } };
+      img.src=url;
+    }catch(err){/* dimensions are cosmetic only */}
+  };
+  rd.onerror=()=>olError("<b>File could not be read.</b>");
+  rd.readAsDataURL(f);
+}
+function olRemove(){ ONELINE=null; olError(null); renderOneLine(); refresh(); }
+function renderOneLine(){
+  const drop=$("oldrop"), prev=$("olprev");
+  if(!ONELINE){ drop.style.display="block"; prev.style.display="none"; prev.innerHTML=""; return; }
+  drop.style.display="none"; prev.style.display="block";
+  const kb=ONELINE.size?Math.round(ONELINE.size/1024)+" KB":"";
+  const dim=(ONELINE.w&&ONELINE.h)?ONELINE.w+"\u00d7"+ONELINE.h+" px ":"";
+  prev.innerHTML=`<img src="${ONELINE.url}" alt="one-line preview">
+    <div class="olmeta"><span>${ONELINE.name}</span><span>${dim}${kb}</span></div>
+    <div class="olbtns"><button onclick="$('olfile').click()">Replace</button><button class="rm" onclick="olRemove()">Remove</button></div>`;
+}
+function wireOneLine(){
+  const drop=$("oldrop"), file=$("olfile");
+  drop.onclick=()=>file.click();
+  file.onchange=e=>{ olLoadFile(e.target.files&&e.target.files[0]); file.value=""; };
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.remove("over");}));
+  drop.addEventListener("drop",e=>{ const dt=e.dataTransfer; if(dt&&dt.files&&dt.files.length)olLoadFile(dt.files[0]); });
+  /* clipboard paste anywhere except while typing in a field */
+  document.addEventListener("paste",e=>{
+    const t=e.target&&e.target.tagName;
+    if(t==="INPUT"||t==="SELECT"||t==="TEXTAREA")return;
+    const items=(e.clipboardData&&e.clipboardData.items)||[];
+    for(const it of items){ if(it.type&&it.type.indexOf("image/")===0){ const f=it.getAsFile(); if(f){ olLoadFile(f); e.preventDefault(); return; } } }
+  });
+}
+
+const $=id=>document.getElementById(id);
+/* ---- provenance: preset / custom / preset + edits ---- */
+function touch(){ const P=PLANS[ACTIVE]; if(P){P.dirty=true;} }
+function provenance(P){
+  if(!P.profile) return {k:"custom", txt:"Custom project data"};
+  const L=PROFILES[P.profile]?PROFILES[P.profile].label:P.profile;
+  return P.dirty ? {k:"mixed", txt:"Preset \u201c"+L+"\u201d + manual edits"}
+                 : {k:"preset", txt:"Preset \u201c"+L+"\u201d, unmodified"};
+}
+const nInt=v=>parseFloat(v)||0;
+
+/* =======================================================
+   ENGINE  (Load Calc w/ EMS — mirrors example artifact)
+   ======================================================= */
+const sc=(loads,cat)=>loads.filter(r=>r.cat===cat).reduce((s,r)=>s+r.qty*r.va,0);
+/* ---------- shared bucket extraction (raw connected VA) ---------- */
+function buckets(L){
+  L.forEach(r=>{ if(r.managed&&!mgdEligible(r.cat))r.managed=false; });
+  const nameplate=r=>r.qty*r.va;
+  const sumN=cat=>L.filter(r=>r.cat===cat).reduce((s,r)=>s+nameplate(r),0);
+  return {
+    lighting: sumN("General Lighting & Receptacles"),
+    smallAppl: sumN("Small Appliance & Laundry"),
+    cooking: sumN("Cooking"), cookingRows: L.filter(r=>r.cat==="Cooking"),
+    dryer: sumN("Dryer"),
+    fastened: sumN("Fastened Appliances"),
+    fastenedCount: L.filter(r=>r.cat==="Fastened Appliances"&&r.qty*r.va>0).length,
+    waterMgd: L.filter(r=>r.cat==="Water Heating"&&r.managed).reduce((s,r)=>s+nameplate(r),0),
+    waterUnmgd: L.filter(r=>r.cat==="Water Heating"&&!r.managed).reduce((s,r)=>s+nameplate(r),0),
+    cool: sumN("HVAC — Cooling"), heat: sumN("HVAC — Heating"), ah: sumN("HVAC — Air Handler"),
+    evCont: sumN("EV & Continuous")+sumN("Pool / Spa"),
+    other: sumN("Other / Custom")+sumN("Battery / ESS")
+  };
+}
+/* Table 220.55 Column C, counted as SEPARATE appliances.
+   COL_C[n] = demand kW for n ranges/ovens each over 1.75 kW through 12 kW.
+   Values reviewed and confirmed by SPAN SE (Master Electrician), Aug 2026.
+   Column C applies only to units OVER 1.75 kW through 12 kW: units at or below
+   COOK_MIN are excluded from the count and added at nameplate instead, so a small
+   countertop appliance cannot inflate the appliance count. Units over 12 kW carry a
+   per-unit adder (single-appliance Note treatment applied inside a multi-unit count
+   is a tool construction, disclosed on the output). */
+const COOK_MIN=1750;
+const COL_C={1:8,2:11,3:14,4:17,5:20,6:21,7:22,8:23,9:24,10:25,11:26,12:27};
+function colC(n){ if(n<=0)return 0; if(COL_C[n])return COL_C[n]*1000;
+  return (27+(n-12))*1000; }
+/* rows = cooking load rows. count = sum of qty (each unit is one appliance).
+   Any single unit over 12 kW gets the Note 1 style adder, flagged for verification. */
+function cookingDemand(rows){
+  let count=0, over=0, small=0, smallN=0;
+  rows.forEach(r=>{ const q=Math.max(0,Math.round(r.qty||0)); if(q<=0||r.va<=0)return;
+    if(r.va<=COOK_MIN){ small+=q*r.va; smallN+=q; return; }   /* outside Column C scope */
+    count+=q;
+    const kW=r.va/1000;
+    if(kW>12) over += q*400*Math.ceil(kW-12);
+  });
+  if(count<=0&&small<=0)return {dem:0,count:0,over:0,small:0,smallN:0};
+  return {dem:colC(count)+over+small,count,over,small,smallN};
+}
+/* ---------- STANDARD (Article 220 Part III / 2026 Art.120) ---------- */
+function engineStandard(b){
+  const genGroup=b.lighting+b.smallAppl;
+  const genDem = genGroup<=3000 ? genGroup
+    : genGroup<=120000 ? 3000+(genGroup-3000)*0.35
+    : 3000+117000*0.35+(genGroup-120000)*0.25;
+  const CK=cookingDemand(b.cookingRows);
+  const cookDem=CK.dem;
+  /* Water heating grouped with fastened-in-place appliances and subject to the
+     4-or-more 75% factor. Confirmed as common practice for a preliminary review;
+     SPAN is not the Engineer of Record. Disclosed in Verification / Open Items. */
+  const fastGroup=b.fastened+b.waterUnmgd+b.waterMgd;
+  const fastCount=b.fastenedCount+((b.waterUnmgd+b.waterMgd)>0?1:0);
+  const fastDem=fastGroup*(fastCount>=4?0.75:1);
+  const dryDem=b.dryer>0?Math.max(b.dryer,5000):0;
+  const hvacDem=Math.max(b.cool,b.heat)+b.ah;
+  const contDem=b.evCont*1.25;
+  const nonMgdBase=genDem+cookDem+fastDem-(b.waterMgd*(fastCount>=4?0.75:1))+dryDem+hvacDem+b.other;
+  return {rows:[
+      ["General lighting ("+lightingUnitVA()+" VA/ft\u00b2) + small appliance / laundry", genGroup, genDem, ref("lightingUnit")+" / "+ref("lighting")],
+      ["Cooking equipment ("+CK.count+" appliance"+(CK.count===1?"":"s")+", Column C)", b.cooking, cookDem, ref("range")],
+      ["Fastened appliances + water heating", fastGroup, fastDem, ref("appliances")],
+      ["Clothes dryer", b.dryer, dryDem, ref("dryer")],
+      ["HVAC (larger of heat / cool + air handler)", b.cool+b.heat+b.ah, hvacDem, ref("noncoincident")],
+      ["Continuous loads (EV charger / pool) @125%", b.evCont, contDem, ref("evse")],
+      ["Other", b.other, b.other, null]
+    ],
+    genDemVA:genDem+cookDem+fastDem+dryDem+b.other, hvacVA:hvacDem, contSubVA:contDem,
+    cont25:b.evCont*0.25, mgdContVA:b.evCont+b.waterMgd, nonMgdVA:nonMgdBase};
+}
+/* ---------- OPTIONAL (220.82 / 2026 120.82) ---------- */
+function engineOptional(b){
+  const pool=b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened+b.waterUnmgd+b.waterMgd+b.other;
+  const genDem = pool<=10000 ? pool : 10000+(pool-10000)*0.40;
+  const hvacDem=Math.max(b.cool,b.heat)+b.ah;
+  const contDem=b.evCont*1.25;
+  const poolNoMgdWH=pool-b.waterMgd;
+  const nonMgdDem = poolNoMgdWH<=10000 ? poolNoMgdWH : 10000+(poolNoMgdWH-10000)*0.40;
+  return {rows:[
+      ["General load pool (nameplate, excl. HVAC + continuous)", pool, genDem, ref("optional")],
+      ["  first 10 kVA @ 100%, remainder @ 40%", null, null, ref("optional")],
+      ["HVAC @ 100% (larger of heat / cool)", b.cool+b.heat+b.ah, hvacDem, ref("optional")],
+      ["Continuous loads (EV charger / pool) @125%", b.evCont, contDem, ref("evse")]
+    ],
+    genDemVA:genDem, hvacVA:hvacDem, contSubVA:contDem,
+    cont25:b.evCont*0.25, mgdContVA:b.evCont+b.waterMgd, nonMgdVA:nonMgdDem+hvacDem};
+}
+function calc(plan){
+  const V=240, L=plan.loads, service=plan.service, setA=service*(PCT/100);
+  const b=buckets(L);
+  const E = METHOD==="standard" ? engineStandard(b) : engineOptional(b);
+  const rawConnectedVA = b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened
+      +b.waterMgd+b.waterUnmgd+b.cool+b.heat+b.ah+b.evCont+b.other;
+  const generalConnVA = b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened+b.waterUnmgd+b.other;
+  const genDemVA=E.genDemVA, hvacVA=E.hvacVA, contSubVA=E.contSubVA, cont25=E.cont25;
+  const managedContinuousVA=E.mgdContVA;
+  const unitTotalVA = genDemVA+hvacVA+contSubVA;
+  const calcA = unitTotalVA/V;
+  const floorA = E.nonMgdVA/V;                // non-managed floor (managed loads excluded)
+  const holdsService = setA<=service;          // setpoint fits the service (always true, but explicit)
+  const emsDoesWork = calcA>setA;              // EMS is actually reducing the submission
+  const floorOK = floorA<=setA;                // SPAN can truly hold at setpoint
+  const overService = calcA>service;           // without EMS, exceeds the firm service
+  // future scenario
+  let futAddNonMgd=0, futAddMgd=0, futList=[], futNon=[], futMgd=[];
+  FUTURE.forEach(f=>{ if(plan.future[f.id]){ futList.push(f.label);
+    if(f.managed){ futAddMgd+=f.va; futMgd.push({label:f.label,va:f.va}); }
+    else { futAddNonMgd+=f.va; futNon.push({label:f.label,va:f.va}); } }});
+  const futFloorA = floorA + futAddNonMgd/V;
+  // future-ready rating
+  let fr; if(futFloorA<=setA*0.85)fr="Strong"; else if(futFloorA<=setA)fr="Moderate"; else fr="Limited";
+  return {V,service,setA,pct:PCT,
+    edition:EDITION,method:METHOD,rows:E.rows,rawConnectedVA,
+    generalConnVA,genDemVA,hvacVA,managedContinuousVA,contSubVA,cont25,unitTotalVA,
+    calcA,floorA,holdsService,emsDoesWork,floorOK,overService,
+    futList,futNon,futMgd,futAddNonMgd,futAddMgd,futFloorA,fr,
+    kw:x=>x/1000};
+}
+function analyze(){
+  const list = MODE==="compare"?[0,1]:[ACTIVE];
+  const plans = list.map(i=>({plan:PLANS[i],c:calc(PLANS[i]),role:MODE==="compare"?(i===0?"Smallest":"Largest"):"Plan"}));
+  // MF rollup
+  let mf=null;
+  if(MODE==="mf"){
+    const units=nInt($("units").value), f=mf84factor(units), c=plans[0].c;
+    if(f!==null){
+      const bldgDemA = c.calcA*units*f;
+      mf={units,factor:f,perUnitCalcA:c.calcA,bldgDemA,qualified:$("mfqual").checked};
+    } else { mf={units,factor:null}; }
+  }
+  return {plans,mf};
+}
+
+/* =======================================================
+   COPY HELPERS
+   ======================================================= */
+const rA=x=>Math.round(x)+"A";
+const cA=x=>Math.ceil(x)+"A";
+const kw=x=>(x/1000).toFixed(2);
+function spanClass(c){
+  if(!c.floorOK) return {k:"BUST",label:"Design change needed"};
+  if(c.overService||c.emsDoesWork) return {k:"SOLVES",label:"SPAN solves"};
+  const hasMgd=c.managedContinuousVA>0;
+  if(hasMgd||c.futList.length) return {k:"ENABLES",label:"SPAN enables"};
+  return {k:"LIMITED",label:"Limited SPAN benefit"};
+}
+
+/* =======================================================
+   RENDER: Load Calc w/ EMS table
+   ======================================================= */
+function calcTable(cols){ // cols: [{label, c}]
+  const rows=[
+   ["grp","DWELLING INFORMATION",null],
+   ["","Conditioned area (sq ft)",c=>c._sqft.toLocaleString()],
+   ["grp","GENERAL LOADS (kW)",null],
+   ["dim","Connected loads subtotal",c=>kw(c.generalConnVA)],
+   ["dim","First 10 kW @ 100%",c=>"10.00"],
+   ["dim","Remainder @ 40%",c=>kw(Math.max(c.generalConnVA-10000,0)*0.40)],
+   ["sub","Total general demand",c=>kw(c.genDemVA)],
+   ["grp","HVAC LOADS (kW)",null],
+   ["sub","Larger of heat / cool + air handler",c=>kw(c.hvacVA)],
+   ["grp","CONTINUOUS LOADS (kW · 125%)",null],
+   ["dim","Managed continuous (EV charger / pool / HPWH)",c=>kw(c.managedContinuousVA)],
+   ["dim","25% continuous adder",c=>kw(c.cont25)],
+   ["sub","Continuous subtotal",c=>kw(c.contSubVA)],
+   ["grp","SERVICE SIZE",null],
+   ["sub","Unit total demand (kW)",c=>kw(c.unitTotalVA)],
+   ["","Calculated demand @ 240V",c=>cA(c.calcA)],
+   ["set","EMS setpoint (submission)",c=>rA(c.setA)],
+   ["prov","Provided service",c=>rA(c.service)]
+  ];
+  let h=`<table class="lc"><thead><tr><th class="lab">Line</th>${cols.map(x=>`<th>${x.label}</th>`).join("")}</tr></thead><tbody>`;
+  rows.forEach(([cls,lab,fn])=>{
+    if(cls==="grp"){h+=`<tr class="grp"><td class="lab" colspan="${cols.length+1}">${lab}</td></tr>`;return;}
+    h+=`<tr class="${cls}"><td class="lab">${lab}</td>${cols.map(x=>`<td>${fn(x.c)}</td>`).join("")}</tr>`;
+  });
+  h+="</tbody></table>";
+  // narrative
+  const worst=cols.reduce((a,b)=>b.c.calcA>a.c.calcA?b:a);
+  const anyOver=cols.some(x=>x.c.overService), allHold=cols.every(x=>x.c.floorOK);
+  h+=`<div class="lcfoot"><b>EMS HOLDS THE LINE&nbsp;&nbsp;</b>${
+    anyOver
+     ? `Calculated demand reaches ${cA(worst.c.calcA)} on ${worst.label} — without EMS that's a 320/400A service. The EMS setpoint holds every plan inside its ${rA(worst.c.service)} service.`
+     : `The EMS setpoint keeps every plan inside its provided service — headroom stays in the panel as loads are added.`}${allHold?"":" <b style='color:#F72A63'>One plan's non-managed floor exceeds the setpoint — see verification.</b>"}</div>`;
+  return h;
+}
+
+/* =======================================================
+   RENDER: BUILDER DESIGN REVIEW
+   ======================================================= */
+function niceTicks(maxA,service){
+  const t=new Set([0,service]);
+  const step = maxA<=160?40 : maxA<=320?50 : 100;
+  for(let v=step; v<maxA; v+=step) if(Math.abs(v-service)>step*0.35) t.add(v);
+  return [...t].filter(v=>v<=maxA).sort((a,b)=>a-b);
+}
+/* Two conditions per plan: Without Energy Management vs With SPAN PowerUp.
+   PowerUp does NOT delete managed load — it is drawn as a controlled (dashed) band
+   held under the setpoint, with any excess shown as time-shifted, not removed. */
+function capacityChartSVG(cols, service, setA){
+  const calcs=cols.map(x=>x.c.calcA);
+  const maxA=Math.max(service*1.32, Math.max(...calcs)*1.16);
+  const W=660,H=342,padL=44,padR=20,padB=64,padT=18,baseY=H-padB,chartH=H-padB-padT;
+  const y=a=>baseY-(Math.max(0,a)/maxA)*chartH;
+  const grp=(W-padL-padR)/cols.length, bw=Math.min(64,grp*0.30), gap=10;
+  let s=`<svg class="cap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  s+=`<defs><pattern id="mgdhatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="#FFF3E0"/><line x1="0" y1="0" x2="0" y2="6" stroke="#FF9500" stroke-width="2.5"/></pattern></defs>`;
+  niceTicks(maxA,service).forEach(v=>{const yy=y(v);
+    s+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#EEE"/>`;
+    s+=`<text x="${padL-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="#9AA0A0">${v}</text>`;});
+  /* service + setpoint reference lines */
+  s+=`<line x1="${padL}" y1="${y(service)}" x2="${W-padR}" y2="${y(service)}" stroke="#141414" stroke-width="1.6" stroke-dasharray="5 3"/>`;
+  s+=`<text x="${W-padR}" y="${y(service)-4}" text-anchor="end" font-size="10" font-weight="700" fill="#141414">${service}A service</text>`;
+  s+=`<line x1="${padL}" y1="${y(setA)}" x2="${W-padR}" y2="${y(setA)}" stroke="#0CB560" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+  s+=`<text x="${W-padR}" y="${y(setA)+11}" text-anchor="end" font-size="10" font-weight="700" fill="#0a9a52">${Math.round(setA)}A setpoint</text>`;
+  cols.forEach((b,i)=>{
+    const c=b.c, gx=padL+grp*i+grp/2;
+    const xA=gx-bw-gap/2, xB=gx+gap/2;
+    /* ---- A: without energy management (full calculated load) ---- */
+    let acc=0;
+    [["gen",c.genDemVA/240],["hvac",c.hvacVA/240],["cont",c.contSubVA/240]].forEach(([k,a])=>{
+      const y0=y(acc),y1=y(acc+a); if(a>0.4)s+=`<rect class="s${k}" x="${xA}" y="${y1}" width="${bw}" height="${(y0-y1).toFixed(1)}"/>`; acc+=a;});
+    if(c.calcA>service){const yT=y(c.calcA),yS=y(service);
+      s+=`<rect class="sover" x="${xA}" y="${yT}" width="${bw}" height="${(yS-yT).toFixed(1)}"/>`;
+      s+=`<line x1="${xA}" y1="${yT}" x2="${xA+bw}" y2="${yT}" stroke="#F72A63" stroke-width="2"/>`;}
+    s+=`<text x="${xA+bw/2}" y="${y(c.calcA)-6}" text-anchor="middle" font-size="12" font-weight="700" fill="${c.calcA>service?'#F72A63':'#141414'}">${Math.ceil(c.calcA)}A</text>`;
+    s+=`<text x="${xA+bw/2}" y="${baseY+13}" text-anchor="middle" font-size="8.5" fill="#666">without EM</text>`;
+    /* ---- B: with SPAN PowerUp ---- */
+    const floor=c.floorA, mgd=Math.max(0,c.calcA-c.floorA);
+    const cap=Math.min(setA,c.calcA);                 /* controlled ceiling */
+    const inBand=Math.max(0,cap-floor);               /* managed load running under setpoint */
+    const shifted=Math.max(0,mgd-inBand);             /* managed load time-shifted, NOT removed */
+    /* non-managed floor solid */
+    let acc2=0;
+    const fGen=Math.min(floor,c.genDemVA/240), fHv=Math.max(0,floor-fGen);
+    [["gen",fGen],["hvac",fHv]].forEach(([k,a])=>{const y0=y(acc2),y1=y(acc2+a);
+      if(a>0.4)s+=`<rect class="s${k}" x="${xB}" y="${y1}" width="${bw}" height="${(y0-y1).toFixed(1)}"/>`; acc2+=a;});
+    /* managed band held under the setpoint (hatched = actively controlled) */
+    if(inBand>0.4){const y0=y(floor),y1=y(floor+inBand);
+      s+=`<rect x="${xB}" y="${y1}" width="${bw}" height="${(y0-y1).toFixed(1)}" fill="url(#mgdhatch)" stroke="#FF9500" stroke-width="1"/>`;}
+    /* Managed load that exceeds the in-band headroom is deferred, not removed.
+       Shown as a compact chevron + label above the capped bar rather than a
+       floating dashed box (which read as clutter over the service line). */
+    if(shifted>0.4){
+      /* labelled below the bar so it never collides with the reference lines */
+      s+=`<text x="${xB+bw/2}" y="${baseY+25}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#c47600">\u2193 ${Math.round(shifted)}A deferred</text>`;}
+    s+=`<line x1="${xB}" y1="${y(cap)}" x2="${xB+bw}" y2="${y(cap)}" stroke="#0CB560" stroke-width="2.4"/>`;
+    s+=`<text x="${xB+bw/2}" y="${y(cap)-6}" text-anchor="middle" font-size="12" font-weight="700" fill="#0a9a52">${Math.round(cap)}A</text>`;
+    s+=`<text x="${xB+bw/2}" y="${baseY+13}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0a9a52">with PowerUp</text>`;
+    s+=`<text x="${gx}" y="${baseY+42}" text-anchor="middle" font-size="10" fill="#333">${b.label.split(":")[0]}</text>`;
+  });
+  s+=`</svg>`;
+  return s;
+}
+/* ---- Future headroom gauge: what each Possible Tomorrow load costs ----
+   The bar IS the setpoint. Non-managed future loads consume headroom;
+   PowerUp-manageable future loads are absorbed and cost none. */
+function futureHeadroomSVG(cols){
+  const anySel=cols.some(x=>x.c.futList.length>0);
+  if(!anySel) return `<div class="nofut">Select loads under <b>Possible Tomorrow</b> to model what each one costs against the PowerUp setpoint.</div>`;
+  const rowH=70, W=660, padL=124, padR=86;
+  const H=8+cols.length*rowH+8, trackW=W-padL-padR;
+  let s=`<svg class="cap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  cols.forEach((b,i)=>{
+    const c=b.c, setp=c.setA, floor=c.floorA;
+    const nf=floor+c.futAddNonMgd/240;
+    const span=Math.max(setp, nf*1.04), sc=trackW/span;
+    const yy=14+i*rowH, bh=25;
+    s+=`<text x="0" y="${yy+15}" font-size="11" font-weight="700" fill="#333">${b.role}</text>`;
+    s+=`<text x="0" y="${yy+28}" font-size="8.5" fill="#6F7070">floor ${Math.round(floor)}A of ${Math.round(setp)}A</text>`;
+    s+=`<rect class="strack" x="${padL}" y="${yy}" width="${trackW}" height="${bh}" rx="4"/>`;
+    s+=`<rect class="sgen" x="${padL}" y="${yy}" width="${(floor*sc).toFixed(1)}" height="${bh}" rx="4"/>`;
+    let x=padL+floor*sc;
+    c.futNon.forEach(f=>{
+      const wid=(f.va/240)*sc;
+      s+=`<rect class="sfut" x="${x.toFixed(1)}" y="${yy}" width="${wid.toFixed(1)}" height="${bh}" stroke="#00B0D3" stroke-width="1" stroke-dasharray="3 2"/>`;
+      x+=wid;});
+    const rem=setp-nf;
+    if(rem>=0){
+      s+=`<rect class="srem" x="${x.toFixed(1)}" y="${yy}" width="${(rem*sc).toFixed(1)}" height="${bh}"/>`;
+      if(rem*sc>44)s+=`<text x="${(x+rem*sc/2).toFixed(1)}" y="${yy+17}" text-anchor="middle" font-size="9" font-weight="700" fill="#0a9a52">${Math.round(rem)}A left</text>`;
+    } else {
+      const ox=padL+setp*sc, ow=(nf-setp)*sc;
+      s+=`<rect class="sover" x="${ox.toFixed(1)}" y="${yy}" width="${ow.toFixed(1)}" height="${bh}" stroke="#F72A63" stroke-width="1"/>`;
+      s+=`<text x="${(ox+ow+6).toFixed(1)}" y="${yy+17}" font-size="9" font-weight="700" fill="#F72A63">+${Math.round(-rem)}A over</text>`;
+    }
+    if(c.futNon.length){
+      s+=`<text x="${padL}" y="${yy+bh+13}" font-size="8" fill="#00819c">Consumes headroom: ${c.futNon.map(f=>f.label+" "+Math.round(f.va/240)+"A").join("  \u00b7  ")}</text>`;
+    } else {
+      s+=`<text x="${padL}" y="${yy+bh+13}" font-size="8" fill="#9AA0A0">No Possible Tomorrow loads selected for this plan</text>`;
+    }
+    s+=`<line x1="${(padL+setp*sc).toFixed(1)}" y1="${yy-5}" x2="${(padL+setp*sc).toFixed(1)}" y2="${yy+bh+5}" stroke="#0CB560" stroke-width="2"/>`;
+    s+=`<text x="${(padL+setp*sc).toFixed(1)}" y="${yy-9}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0a9a52">${Math.round(setp)}A setpoint</text>`;
+  });
+  s+=`</svg>`;
+  const mgd=cols[cols.length-1].c.futMgd;
+  if(mgd.length){
+    s+=`<div class="chips"><span class="chl">Absorbed by PowerUp \u2014 no headroom cost:</span>`
+      + mgd.map(f=>`<span class="chip">${f.label} ${Math.round(f.va/240)}A</span>`).join("")+`</div>`;
+  }
+  const nonTot=cols[cols.length-1].c.futAddNonMgd, mgdTot=cols[cols.length-1].c.futAddMgd;
+  if(mgdTot>0||nonTot>0){
+    s+=`<div class="futnote"><b>${Math.round(mgdTot/240)}A</b> of future load is manageable and costs no headroom; <b>${Math.round(nonTot/240)}A</b> is not manageable and comes straight off the setpoint. Which options a builder offers matters more than how many.</div>`;
+  }
+  return s;
+}
+/* ---- PowerUp numbers panel ---- */
+function powerUpPanel(cols, service, setA){
+  const worst=cols.reduce((a,b)=>b.c.calcA>a.c.calcA?b:a);
+  const c=worst.c;
+  const mgdA=Math.max(0,c.calcA-c.floorA);
+  const head=setA-c.floorA;
+  const capable=c.floorA<=setA;
+  const mgdLoads=[];
+  worst.plan.loads.forEach(r=>{ if(r.managed&&r.qty*r.va>0)mgdLoads.push([r.desc,r.qty*r.va]); });
+  return `<div class="pugrid">
+    <div class="pucard noem"><h4>Without energy management</h4><div class="n">${cA(c.calcA)}</div>
+      <div class="sm">Calculated dwelling load, ${methodName()}. ${c.calcA>service?`Exceeds the ${rA(service)} service by ${Math.ceil(c.calcA-service)} A.`:`Within the ${rA(service)} service.`}</div></div>
+    <div class="pucard withpu"><h4>With SPAN PowerUp\u2122</h4><div class="n">${rA(Math.min(setA,c.calcA))}</div>
+      <div class="sm">Demand held under the ${rA(setA)} setpoint (${Math.round(c.pct)}% of ${rA(service)}). The managed load is still connected and still served \u2014 it is controlled, not removed.</div></div>
+    <div class="pucard verdict"><h4>Management capacity</h4>
+      <div class="li"><span>Non-managed floor</span><b>${rA(c.floorA)}</b></div>
+      <div class="li"><span>Available for management</span><b>${rA(mgdA)}</b></div>
+      <div class="li"><span>Headroom under setpoint</span><b>${head>=0?"+":""}${head.toFixed(0)} A</b></div>
+      <div class="puverd ${capable?"ok":"no"}">${capable
+        ? "Appears capable of operating within the configured setpoint."
+        : "Does NOT appear capable \u2014 non-managed load alone exceeds the setpoint."}</div></div>
+  </div>
+  ${mgdLoads.length?`<div class="sm" style="font-size:11.5px;color:var(--grey);margin-top:8px">Loads selected for management (${worst.role.toLowerCase()} plan): ${mgdLoads.map(m=>m[0]+" ("+m[1].toLocaleString()+" VA)").join(" · ")}</div>`:`<div class="sm" style="font-size:11.5px;color:var(--grey);margin-top:8px">No loads are currently selected for management.</div>`}
+  <div class="pumech"><b>How it works.</b> SPAN PowerUp\u2122 monitors total demand in real time. As the home approaches the ${rA(setA)} setpoint, PowerUp reduces or defers the selected manageable loads \u2014 Level 2 EV charging, water heating, pool equipment \u2014 then restores them automatically once demand falls. Cooking, dryer, refrigeration and lighting are never curtailed. The loads remain installed and available; only their timing and rate are managed.</div>
+  <div class="illus">Final applicability requires project-specific load calculations, equipment data, applicable NEC provisions, utility requirements, local amendments, and AHJ approval.</div>`;
+}
+function loadBarsHTML(plan){
+  const L=plan.loads;
+  const g=[
+   ["EV & continuous", sc(L,"EV & Continuous")+sc(L,"Pool / Spa"), true],
+   ["HVAC", Math.max(sc(L,"HVAC — Cooling"),sc(L,"HVAC — Heating"))+sc(L,"HVAC — Air Handler"), false],
+   ["Cooking", sc(L,"Cooking"), false],
+   ["Water heating", sc(L,"Water Heating"), false],
+   ["Dryer", sc(L,"Dryer"), false],
+   ["General lighting", sc(L,"General Lighting & Receptacles"), false],
+   ["Small appliance / laundry", sc(L,"Small Appliance & Laundry"), false],
+   ["Fastened appliances", sc(L,"Fastened Appliances"), false],
+   ["Other", sc(L,"Other / Custom"), false]
+  ].map(x=>({lab:x[0],a:x[1]/240,ev:x[2]})).filter(x=>x.a>0.5).sort((a,b)=>b.a-a.a);
+  const mx=Math.max(...g.map(x=>x.a),1);
+  /* Rendered as SVG: HTML background colours are dropped by print engines,
+     which previously made this chart disappear in the PDF. */
+  const W=660, rowH=22, padL=178, padR=46, top=6;
+  const H=top+g.length*rowH+4, trackW=W-padL-padR;
+  let s=`<svg class="cap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  g.forEach((x,i)=>{
+    const yy=top+i*rowH, bh=13, w=Math.max(3,x.a/mx*trackW);
+    const cls=x.ev?"scont":(x.a>=40?"shvac":"sgen");
+    s+=`<text x="0" y="${yy+bh-2}" font-size="11" fill="#333">${x.lab}</text>`;
+    if(x.ev)s+=`<text x="${padL-8}" y="${yy+bh-2}" text-anchor="end" font-size="9" font-weight="700" fill="#c47600">EV \u2192</text>`;
+    s+=`<rect class="strack" x="${padL}" y="${yy}" width="${trackW}" height="${bh}" rx="3"/>`;
+    s+=`<rect class="${cls}" x="${padL}" y="${yy}" width="${w.toFixed(1)}" height="${bh}" rx="3"/>`;
+    s+=`<text x="${W-4}" y="${yy+bh-2}" text-anchor="end" font-size="11" font-weight="700" fill="#141414">${Math.round(x.a)}A</text>`;
+  });
+  s+=`</svg>`;
+  return s;
+}
+function exampleCalcTable(A,builder){
+  const P=A.plans;
+  const kwv=v=>(v/1000).toFixed(2);
+  const lineRows=P[0].c.rows;
+  let h='<div class="exwrap">';
+  h+='<div class="exwm"><span>EXAMPLE</span></div>';
+  h+=`<div class="exhead">
+        <div><span class="exbadge">Example load calculation</span>
+          <div class="t">${builder}</div></div>
+        <div class="m">${R().label} \u00b7 ${methodName()}<br>PowerUp setpoint ${Math.round(P[0].c.pct)}% of service</div>
+      </div>`;
+  h+='<table class="lc"><thead><tr><th class="lab">Plan ID</th>'+P.map(p=>`<th>${p.plan.name}</th>`).join("")+'</tr></thead><tbody>';
+  const grp=t=>{h+=`<tr class="grp"><td class="lab" colspan="${P.length+1}">${t}</td></tr>`;};
+  const row=(cls,lab,fn)=>{h+=`<tr class="${cls}"><td class="lab">${lab}</td>${P.map(p=>`<td>${fn(p)}</td>`).join("")}</tr>`;};
+  grp("DWELLING INFORMATION");
+  row("","Conditioned area (sq ft)",p=>p.plan.sqft.toLocaleString());
+  row("dim","General lighting unit load",p=>lightingUnitVA()+" VA/ft\u00b2");
+  grp("CALCULATED LOAD (kW) \u2014 "+(METHOD==="optional"?"OPTIONAL":"STANDARD")+" METHOD");
+  lineRows.forEach((r,i)=>{
+    if(r[1]===null){ row("dim",r[0],p=>"\u2014"); return; }
+    row("dim",r[0],p=>{const rr=p.c.rows[i];return rr&&rr[2]>0?kwv(rr[2]):"\u2014";});
+  });
+  row("sub","Total calculated demand (kW)",p=>kwv(p.c.unitTotalVA));
+  grp("SERVICE SIZE");
+  row("","Calculated demand @ 240V",p=>cA(p.c.calcA));
+  row("set","PowerUp setpoint (A)",p=>rA(p.c.setA));
+  row("prov","Provided service (A)",p=>rA(p.c.service));
+  row("dim","Loads under PowerUp management",p=>{
+    const n=p.plan.loads.filter(r=>r.managed&&r.qty*r.va>0).length;
+    return n?n+" ("+rA(Math.max(0,p.c.calcA-p.c.floorA))+")":"none";});
+  h+='</tbody></table>';
+  const worst=P.reduce((a,b)=>b.c.calcA>a.c.calcA?b:a);
+  const over=P.some(p=>p.c.overService);
+  h+=`<div class="lcfoot" style="position:relative;z-index:1;margin:0 -14px">
+      <b>${over?"POWERUP HOLDS THE LINE":"WITHIN SERVICE"}&nbsp;&nbsp;</b>${over
+       ? `Calculated demand reaches ${cA(worst.c.calcA)} on ${worst.plan.name} \u2014 without energy management that is a 320/400A service. PowerUp manages the selected loads to keep demand under the ${rA(worst.c.setA)} setpoint on a ${rA(worst.c.service)} service.`
+       : `Calculated demand stays inside the provided service on every plan shown; PowerUp keeps the remaining headroom available as loads are added.`}</div>`;
+  h+='</div>';
+  return h;
+}
+function renderBuilder(A){
+  const st=STATES[$("state").value]||{}, nec=st.nec||"—";
+  const builder=$("builder").value, ahj=$("ahj").value||$("state").value, util=$("utility").value||"—", homes=nInt($("homes").value);
+  const date=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  A.plans.forEach(p=>p.c._sqft=p.plan.sqft);
+  const cols=A.plans.map(p=>({label:`${p.role}: ${p.plan.name}`,c:p.c,plan:p.plan,role:p.role}));
+  const largest=A.plans[A.plans.length-1], sc0=spanClass(largest.c);
+  const anyOver=A.plans.some(p=>p.c.overService);
+  const ahaNum = cA(largest.c.calcA);
+
+  // executive finding
+  let execTxt, execCls;
+  if(anyOver){ execCls="hold"; execTxt=`Fully optioned, the ${largest.role.toLowerCase()} plan calculates to ${ahaNum} — beyond a ${rA(largest.c.service)} panel. A ${panelFull(largest.c.service)} holds every plan in the range inside ${rA(largest.c.service)}, so one service strategy covers the whole community.`;}
+  else if(largest.c.floorOK){ execCls="hold"; execTxt=`Every plan fits inside a ${rA(largest.c.service)} service today. The ${panelName(largest.c.service)} keeps that headroom available as options are added — no re-engineering when the homeowner electrifies later.`;}
+  else { execCls="bust"; execTxt=`The ${largest.role.toLowerCase()} plan's non-managed load exceeds the EMS setpoint — the design needs a change (shift a load to gas, add a managed branch, or a higher service) before the ${panelName(largest.c.service)} can hold it. Flagged below.`;}
+
+  // future-ready worst
+  const frOrder={Strong:3,Moderate:2,Limited:1};
+  const frWorst=A.plans.reduce((a,b)=>frOrder[b.c.fr]<frOrder[a.c.fr]?b:a);
+
+  // findings
+  let finds=[];
+  if(anyOver)finds.push(["opp",`The largest plan's calculated demand (${ahaNum}) exceeds a ${rA(largest.c.service)} panel. Without load management that forces a 320/400A service across the community.`]);
+  A.plans.forEach(p=>{ if(!p.c.floorOK)finds.push(["risk",`${p.role} plan: non-managed load (${rA(p.c.floorA)}) is above the ${rA(p.c.setA)} setpoint. Managed loads alone can't hold it — design change required.`]); });
+  if(A.plans.some(p=>p.c.managedContinuousVA>0))finds.push(["decision",`EV charging / heat-pump water heating is present and managed — the loads that would otherwise drive a service upsize are exactly the loads PowerUp manages.`]);
+  if(frWorst.c.fr!=="Strong")finds.push(["decision",`Future-ready is ${frWorst.c.fr} on the ${frWorst.role.toLowerCase()} plan — added non-managed loads (induction, extra HVAC, finished space) are what tighten it, not the managed ones.`]);
+  if(!finds.length)finds.push(["opp","Design is clean today with headroom to spare; SPAN's value here is optionality and visibility rather than a required capacity fix."]);
+
+  // solves / enables
+  let solves=[],enables=[];
+  if(anyOver)solves.push(`Manages the flexible loads so demand stays under the ${rA(largest.c.setA)} setpoint on a ${rA(largest.c.service)} service, where the calculated load is ${ahaNum} — avoids a 320/400A upgrade across ${homes} homes.`);
+  A.plans.forEach(p=>{ if(p.c.managedContinuousVA>0&&p.c.floorOK)solves.push(`${p.role}: EV charging / water heating enrolled as PowerUp-managed loads, controlled to stay under the ${rA(p.c.setA)} setpoint.`);});
+  enables.push("Circuit-level monitoring and control on every branch — homeowner visibility and backup priorities.");
+  enables.push("EV, solar, and battery added later without re-engineering the panel.");
+  if(frWorst.c.fr==="Strong")enables.push("Room to sell future options (2nd EV, spa, ADU) on the service already installed.");
+  if(!solves.length)solves.push("No hard capacity problem to remove on these plans — see Enables.");
+
+  // verification
+  let verify=[
+   `AHJ acceptance of the EMS setpoint as a single line item — ${emsCite(nec)}.`,
+   "Actual plan loads, HVAC sizing, and water-heating fuel confirmed against panel schedules / mechanical.",
+   "Utility service and metering requirements ("+util+")."
+  ];
+  if(METHOD==="standard")verify.push(`Water heating is grouped with fastened-in-place appliances under NEC ${ref("appliances")} and included in the 4-or-more 75% demand factor. This is a common-practice assumption for a preliminary review, not an engineered determination.`);
+  const estRows=[];
+  A.plans.forEach(p=>p.plan.loads.forEach(r=>{ if(r.est&&r.qty*r.va>0&&estRows.indexOf(r.desc)<0)estRows.push(r.desc); }));
+  if(estRows.length)verify.push(`Planning estimates used for: ${estRows.join(", ")}. ${PLANNING_TIP}`);
+  const pf=A.plans.map(p=>p.plan.poolFeeder).filter(Boolean)[0];
+  if(pf)verify.push(`Pool subpanel feeder shown as ${pf} A is informational only — feeder capacity is not the connected pool load. Pool package loads are itemized, not assumed from the feeder rating.`);
+  if(MODE==="mf"&&A.mf&&A.mf.factor)verify.push(`Multifamily NEC ${ref("multifamily")} demand factor (${Math.round(A.mf.factor*100)}% at ${A.mf.units} units) and qualifying conditions.`);
+
+  const frColor={Strong:"var(--green)",Moderate:"var(--amber)",Limited:"var(--red)"}[frWorst.c.fr];
+
+  const areas=A.plans.map(p=>p.plan.sqft).sort((a,b)=>a-b);
+  const areaTxt=(areas.length>1&&areas[0]!==areas[areas.length-1])
+      ? areas[0].toLocaleString()+"\u2013"+areas[areas.length-1].toLocaleString()+" sq ft"
+      : areas[0].toLocaleString()+" sq ft";
+  const svcs=[...new Set(A.plans.map(p=>p.c.service))].sort((a,b)=>a-b);
+  const svcTxt=svcs.map(v=>v+"A").join(" / ")+" Service";
+  const prepby=$("prepby").value, preprole=$("preprole").value;
+  $("outBuilder").innerHTML=`
+  <section class="page cover">
+    <div class="cvtop"><div class="cvbrand">SPAN <span>ENERGY INTELLIGENCE</span></div></div>
+    <div class="cvmid">
+      <div class="cvrule"></div>
+      <h1 class="cvtitle">Design Review</h1>
+      <div class="cvbuilder">${builder}</div>
+      <div class="cvspec">${areaTxt} &nbsp;\u2022&nbsp; ${svcTxt}</div>
+      <div class="cvplans">${A.plans.map(p=>p.role+": "+p.plan.name).join("  \u00b7  ")}</div>
+    </div>
+    <div class="cvfoot">
+      <div class="cvmeta">
+        ${prepby?`<div class="cvm"><span>Prepared by</span><b>${prepby}</b>${preprole?`<i>${preprole}</i>`:""}</div>`:""}
+        <div class="cvm"><span>Jurisdiction</span><b>${ahj}</b><i>${util}</i></div>
+        <div class="cvm"><span>Code basis</span><b>${R().label}</b><i>${methodName()}</i></div>
+        <div class="cvm"><span>Community</span><b>${homes.toLocaleString()} homes</b><i>${date}</i></div>
+      </div>
+      <div class="cvyear">${new Date().getFullYear()}</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="dhead">
+      <div class="l"><b>SPAN ENERGY INTELLIGENCE · PRELIMINARY DESIGN REVIEW</b>
+        <div class="t">${builder}</div>
+        <div class="s">${A.plans.map(p=>p.role+": "+p.plan.name+" ("+p.plan.sqft.toLocaleString()+" sf)").join("  ·  ")}</div>
+      </div>
+      <div class="r"><span class="pill ext">SPAN Energy Intelligence</span><br>${$("state").value} · NEC ${nec}<br>AHJ: ${ahj} · ${util}<br>${homes.toLocaleString()} homes · ${date}</div>
+    </div>
+
+    <div class="sec"><div class="eyebrow">Calculation Basis</div>
+      <div class="basis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="bi"><span class="bk">NEC edition</span><span class="bv">${R().label}</span></div>
+        <div class="bi"><span class="bk">Calculation method</span><span class="bv">${methodName()}</span></div>
+        <div class="bi"><span class="bk">PowerUp setpoint</span><span class="bv">${Math.round(A.plans[0].c.pct)}% of service</span></div>
+      </div>
+      <table class="basistbl"><thead><tr>
+        <th class="l">Plan</th><th>Area</th><th>Service</th><th>Setpoint</th><th>Calculated VA</th><th>Calculated A</th><th>vs. service</th>
+      </tr></thead><tbody>
+      ${A.plans.map(p=>{const d=p.c.calcA-p.c.service; const pv=provenance(p.plan); return `<tr>
+        <td class="l"><b>${p.role}</b> — ${p.plan.name}<br><span class="prov">${pv.txt}</span></td>
+        <td>${p.plan.sqft.toLocaleString()} ft\u00b2</td>
+        <td>${rA(p.c.service)}</td>
+        <td>${rA(p.c.setA)}</td>
+        <td>${Math.round(p.c.unitTotalVA).toLocaleString()}</td>
+        <td><b>${cA(p.c.calcA)}</b></td>
+        <td class="${d>0?"over":"under"}">${d>0?"+"+Math.ceil(d)+"A over":Math.abs(Math.floor(d))+"A under"}</td>
+      </tr>`;}).join("")}
+      </tbody></table>
+      ${R().verify?`<div class="verifybar"><b>[VERIFY]</b> ${R().note}</div>`:""}
+    </div>
+
+    <div class="sec"><div class="eyebrow">Executive Finding</div>
+      <div class="exec ${execCls}">${execTxt}</div>
+    </div>
+
+    ${anyOver?`<div class="sec"><div class="aha">
+      <div class="big">${ahaNum}</div>
+      <div class="msg">That's the ${largest.role.toLowerCase()} plan's calculated demand, fully optioned — on a panel labeled ${rA(largest.c.service)}. The label was never the service size; the calc is. <b>With PowerUp managing the flexible loads, demand is held under ${rA(largest.c.setA)} on a ${rA(largest.c.service)} service — no 400A.</b></div>
+    </div></div>`:""}
+
+    <div class="sec"><div class="eyebrow">Current Electrical Design</div>
+      <div class="kv">
+        ${A.plans.map(p=>`
+        <div class="i"><span class="k">${p.role} — service</span><span class="v">${rA(p.c.service)}</span></div>
+        <div class="i"><span class="k">${p.role} — calculated demand</span><span class="v">${cA(p.c.calcA)}</span></div>`).join("")}
+        <div class="i"><span class="k">Panel architecture</span><span class="v">${panelName(largest.c.service)} (48 pos.)</span></div>
+        <div class="i"><span class="k">EMS setpoint basis</span><span class="v">${Math.round(A.plans[0].c.pct)}% · ${emsCite(nec)}</span></div>
+      </div>
+    </div>
+
+    <div class="sec"><div class="eyebrow">Capacity vs. service rating — with and without PowerUp</div>
+      <h2>${anyOver?`The ${largest.role.toLowerCase()} plan doesn\'t fit a ${rA(largest.c.service)} panel. PowerUp holds it.`:`Every plan fits — and the ${panelName(largest.c.service)} keeps the headroom.`}</h2>
+      ${(function(){
+        const groups={};
+        cols.forEach(x=>{const k=x.c.service;(groups[k]=groups[k]||[]).push(x);});
+        const keys=Object.keys(groups).map(Number).sort((a,b)=>a-b);
+        if(keys.length===1) return capacityChartSVG(cols, keys[0], groups[keys[0]][0].c.setA);
+        return keys.map(k=>{
+          const g=groups[k], sp=g[0].c.setA;
+          return `<div class="chartblk"><h3>${k}A service</h3><div class="csub">${g.map(x=>x.label).join(" · ")} — PowerUp setpoint ${rA(sp)}</div>${capacityChartSVG(g,k,sp)}</div>`;
+        }).join("");
+      })()}
+      <div class="caplegend"><span><i style="background:#6F7070"></i>General</span><span><i style="background:#00B0D3"></i>HVAC</span><span><i style="background:#FF9500"></i>EV &amp; continuous</span><span><i style="background:rgba(247,42,99,.4)"></i>Over service rating</span><span><i style="background:#FFF3E0;border:1px solid #FF9500"></i>Managed by PowerUp (controlled, not removed)</span></div>
+    </div>
+
+    <div class="sec"><div class="eyebrow">SPAN PowerUp\u2122 Energy Management</div>
+      <h2>Two conditions, same installed loads</h2>
+      ${powerUpPanel(cols, largest.c.service, largest.c.setA)}
+    </div>
+    ${disclaimerShort()}
+    <div class="foot"><span>SPAN Energy Intelligence · Preliminary Design Review</span><span>${builder}</span></div>
+  </section>
+
+  <section class="page">
+    ${ONELINE?`<div class="sec" style="margin-top:0"><div class="eyebrow">Project One-Line / Electrical Diagram</div>
+      <div class="olfig">
+        <img src="${ONELINE.url}" alt="Project one-line diagram">
+        <div class="olcap">Illustrative One-Line Diagram</div>
+        <div class="olnote">Diagram provided for design discussion only. Final electrical design and construction documents must be prepared and/or approved by the appropriate qualified parties. This diagram has not been interpreted, reviewed or validated by this tool.</div>
+      </div>
+    </div>`:""}
+    <div class="sec" ${ONELINE?"":'style="margin-top:0"'}><div class="eyebrow">Where the amps go — ${largest.role} plan</div>
+      <h2>The loads driving capacity</h2>
+      ${loadBarsHTML(largest.plan)}
+      <p style="font-size:12px;color:var(--grey);margin-top:6px">Connected load by group, in amps at 240V. A Level 2 EV charger is the single biggest driver on most new builds — and it is a load PowerUp manages.</p>
+    </div>
+    <div class="sec"><div class="eyebrow">Raw connected load vs. NEC calculated load</div>
+      <h2>${methodName()}</h2>
+      <table class="lc"><thead><tr><th class="lab">Load group</th><th>Raw connected VA</th><th>NEC demand VA</th><th style="text-align:left">Reference</th></tr></thead><tbody>
+      ${largest.c.rows.filter(r=>r[1]!==null&&(r[1]>0||r[2]>0)).map(r=>`<tr><td class="lab">${r[0]}</td><td>${Math.round(r[1]).toLocaleString()}</td><td class="em">${Math.round(r[2]).toLocaleString()}</td><td class="lab" style="font-size:10.5px;color:var(--grey)">${r[3]?"NEC "+r[3]:"—"}</td></tr>`).join("")}
+      <tr class="tot"><td class="lab">Total raw connected</td><td>${Math.round(largest.c.rawConnectedVA).toLocaleString()}</td><td class="em">${Math.round(largest.c.unitTotalVA).toLocaleString()}</td><td class="lab"></td></tr>
+      <tr class="amp"><td class="lab">Calculated demand @ 240V</td><td></td><td class="em">${cA(largest.c.calcA)}</td><td class="lab"></td></tr>
+      </tbody></table>
+      <div class="illus">Raw connected VA is nameplate/design load. NEC demand VA is the same load after the demand factors of the selected method. A breaker rating is not a load value. Cooking is counted as separate appliances using Table ${ref("range")} Column C. Appliances at or below 1.75 kW are excluded from the Column C count and added at nameplate. Appliances over 12 kW carry a per-unit adder.</div>
+    </div>
+    <div class="sec"><div class="eyebrow">Example load calculation</div>
+      <h2>How the numbers assemble</h2>
+      ${exampleCalcTable(A,builder)}
+      <div class="illus">Marked EXAMPLE. Figures update from the inputs entered in this review so the arithmetic can be followed, but this sheet is a preliminary illustration only \u2014 not a stamped or sealed calculation, not a permit document, and not prepared by the Engineer of Record. Project load calculations remain the responsibility of the qualified design professional.</div>
+    </div>
+    ${disclaimerShort()}
+    <div class="foot"><span>SPAN Energy Intelligence · Preliminary Design Review</span><span>${builder}</span></div>
+  </section>
+
+  <section class="page">
+    <div class="sec" style="margin-top:0"><div class="eyebrow">Key Findings</div>
+      ${finds.map(f=>`<div class="find"><span class="tag ${f[0]}">${f[0]==="opp"?"Opportunity":f[0]==="risk"?"Risk":"Decision"}</span>${f[1]}</div>`).join("")}
+    </div>
+
+    <div class="sec"><div class="eyebrow">Future-Ready Assessment</div>
+      <div class="fr">
+        <div class="frdot" style="background:${frColor}">${frWorst.c.fr}</div>
+        <div class="txt">Rated on the ${frWorst.role.toLowerCase()} plan. ${frWorst.c.fr==="Strong"?"Managed and non-managed future loads both sit under the setpoint — the community can electrify further on this service.":frWorst.c.fr==="Moderate"?"Most future loads fit; non-managed additions (induction, extra HVAC) are the ones to watch against the setpoint.":"Non-managed future loads would push past the setpoint — those need a design decision, not just SPAN."}</div>
+      </div>
+      <div class="frscale">
+        <span class="${frWorst.c.fr==="Limited"?"on":""}" style="${frWorst.c.fr==="Limited"?"background:var(--red)":""}">Limited</span>
+        <span class="${frWorst.c.fr==="Moderate"?"on":""}" style="${frWorst.c.fr==="Moderate"?"background:var(--amber)":""}">Moderate</span>
+        <span class="${frWorst.c.fr==="Strong"?"on":""}" style="${frWorst.c.fr==="Strong"?"background:var(--green)":""}">Strong</span>
+      </div>
+      ${frWorst.c.futList.length?`<p style="font-size:12px;color:var(--grey);margin-top:8px">Scenario modeled: ${frWorst.c.futList.join(", ")}.</p>`:""}
+      <h2 style="margin-top:16px">What each future load costs</h2>
+      ${futureHeadroomSVG(cols)}
+    </div>
+
+    <div class="sec"><div class="eyebrow">SPAN Opportunity</div>
+      <div class="se">
+        <div class="col solves"><h3>SPAN solves</h3><ul>${solves.map(s=>`<li>${s}</li>`).join("")}</ul></div>
+        <div class="col enables"><h3>SPAN enables</h3><ul>${enables.map(s=>`<li>${s}</li>`).join("")}</ul></div>
+      </div>
+    </div>
+
+    <div class="sec"><div class="eyebrow">Verification / Open Items</div>
+      ${verify.map(v=>`<div class="vitem"><span class="vr">Verify</span><span>${v}</span></div>`).join("")}
+    </div>
+
+    <div class="next"><div class="eyebrow">Recommended Next Step</div>
+      <h2>${anyOver?"Standardize one service strategy across the range.":"Confirm the setpoint and keep the headroom."}</h2>
+      <p>${anyOver?`Confirm the ${emsCite(nec)} setpoint with ${ahj}, then apply the ${panelName(largest.c.service)} strategy to every plan — smallest to largest — so purchasing and the EC quote one design across ${homes.toLocaleString()} homes.`:`Confirm the setpoint line item with the AHJ, then let PowerUp carry future options on the service you're already installing.`}</p>
+      <div class="step"><b>Confirm</b><span>AHJ acceptance of the PowerUp setpoint line item + Smart Panel service-entrance rating.</span></div>
+      <div class="step"><b>Standardize</b><span>One ${rA(largest.c.service)} strategy across the plan range and the community.</span></div>
+      <div class="step"><b>Verify</b><span>Loads, HVAC, and utility with the EC / MEP before permit.</span></div>
+    </div>
+    ${disclaimerFull()}
+    <div class="foot"><span>SPAN Energy Intelligence · Preliminary Design Review</span><span>${builder} · ${date}</span></div>
+  </section>`;
+}
+
+/* =======================================================
+   RENDER: INTERNAL SALES BRIEF
+   ======================================================= */
+function renderBrief(A){
+  const st=STATES[$("state").value]||{}, nec=st.nec||"—";
+  const builder=$("builder").value, homes=nInt($("homes").value), date=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const largest=A.plans[A.plans.length-1], sc0=spanClass(largest.c);
+  const anyOver=A.plans.some(p=>p.c.overService);
+  const anyBust=A.plans.some(p=>!p.c.floorOK);
+  const ahaNum=cA(largest.c.calcA);
+  const pc=PITCHC[st.pitch]||"#6F7070";
+
+  const block=(cls,h,body)=>`<div class="block ${cls}"><h3>${h}</h3>${body}</div>`;
+
+  $("outBrief").innerHTML=`
+  <section class="page ib">
+    <div class="dhead">
+      <div class="l"><b>INTERNAL SALES BRIEF — NOT FOR DISTRIBUTION</b>
+        <div class="t">${builder}</div>
+        <div class="s">${A.plans.map(p=>p.role+": "+p.plan.name).join("  ·  ")} · ${$("state").value}</div>
+      </div>
+      <div class="r"><span class="pill int">Internal</span><br>NEC ${nec}<br>${homes.toLocaleString()} homes · ${date}</div>
+    </div>
+
+    <div class="pitchrow" style="margin-top:14px">
+      <span class="pitchtag" style="background:${pc}">${st.pitch} pitch</span>
+      <span style="font-size:12px;color:var(--grey)">${st.mandate} · Driver: ${st.batt}</span>
+    </div>
+
+    ${block("","Executive Read", `<p>${anyBust?`The ${largest.role.toLowerCase()} plan busts the setpoint on non-managed load — lead with the fix, not the win. `:""}${anyOver?`Largest plan calculates to <b>${ahaNum}</b> on a ${rA(largest.c.service)} panel. This is a clean 400→200 avoidance story across ${homes.toLocaleString()} homes. Verdict: <b>${sc0.label}</b>.`:`No forced upsize on these plans — SPAN's play here is optionality and future-readiness, verdict <b>${sc0.label}</b>. Don't oversell a capacity problem that isn't there.`}</p>`)}
+
+    ${block("","Business Impact", `<p>${anyOver?`One service strategy instead of a 320/400A spread means the builder standardizes gear, the EC quotes one design, and every home keeps headroom to sell options later — multiplied across ${homes.toLocaleString()} doors.`:`The builder protects future optionality and homeowner appeal without touching the service — a differentiation play more than a cost-avoidance one.`}</p>`)}
+
+    ${block("teach","Challenger Insight — the \u201cI didn't know that\u201d", `<p>${anyOver?`Most builders spec to the panel label and assume the label equals usable load. Fully optioned, the ${largest.role.toLowerCase()} plan already calculates to ${ahaNum}. The label was never the service size — the calc is, and the calc crossed the line the moment they added the options they're trying to sell.`:`The loads that scare builders about electrification — EV, heat-pump water heating — are exactly the loads PowerUp manages. The panel doesn't just monitor; it holds the service.`}</p>`)}
+
+    ${block("tension","Constructive Tension", `<p>Respectfully challenge: <b>\u201cA bigger service is the only way to be future-ready.\u201d</b> ${anyOver?`It's the opposite — a bigger service is dead copper if the loads never run coincidentally. Managing demand keeps a firm ${rA(largest.c.service)} and leaves room to sell the next option.`:`On these plans the service already fits; the real question is whether they want circuit-level control and option enablement, not more amps.`}</p>`)}
+
+    ${block("","SPAN Value — what changes", `<ul>
+      ${anyOver?`<li>Holds ${ahaNum} calculated demand inside a ${rA(largest.c.service)} service (managed continuous load).</li>`:""}
+      <li>Service-entrance-rated Smart Panel (225A busbar, 200A max main), 48 controllable positions — dual-panel on the largest plans.</li>
+      <li>UL 916 EMS + UL 3141 PCS (first-in-class) — code cover under Article 750${pcsAvail(nec)?" and 705.13 PCS in this "+nec+" jurisdiction":""}.</li>
+      <li>Circuit-level monitoring/control at \u00b10.5%; Powerwall 3 / FranklinWH ready.</li>
+    </ul>`)}
+
+    ${block("","Strongest Evidence", `<p>The load calc itself: ${A.plans.map(p=>`${p.role} ${cA(p.c.calcA)}`).join(", ")} calculated vs. a ${rA(largest.c.service)} service, setpoint ${rA(largest.c.setA)} per ${emsCite(nec)}. Spec-sheet: service-entrance rated, 200A max main, UL 916/3141.</p>`)}
+    <div class="foot"><span>INTERNAL — SPAN Energy Intelligence sales brief</span><span>${builder}</span></div>
+  </section>
+
+  <section class="page ib">
+    ${block("risk","Likely Objections", `<ul>
+      <li><b>AHJ:</b> \u201cWill you accept an EMS setpoint as the service-sizing line item?\u201d ${pcsAvail(nec)?"(2023 NEC — PCS 705.13 helps.)":"(Pre-2023 — lean on 750.30(C).)"}</li>
+      <li><b>EC:</b> \u201cIs this more labor?\u201d One panel, feed-thru lugs, standard plug-on breakers.</li>
+      <li><b>Purchasing:</b> \u201cWhy not just upsize?\u201d Standardization + option enablement, not amps.</li>
+      <li><b>Engineer:</b> \u201cConnected vs. managed load?\u201d Non-managed floor is the real constraint — show it.</li>
+    </ul>`)}
+
+    ${block("","Recommended Response", `<p>Bring the calc and the ${emsCite(nec)} language to the AHJ early; submit the setpoint as a single line item with the UL 916/3141 listing. To the EC: same box count or fewer, standard breakers, one commissioning step. To the engineer: concede the non-managed floor openly — it's ${rA(largest.c.floorA)} here${largest.c.floorOK?", comfortably under the setpoint":" and needs attention (see deal risk)"}.</p>`)}
+
+    ${block("","Discovery Questions", `<ul>
+      <li>What are you speccing today — service size, panel, circuit count, inside/outside?</li>
+      <li>Which options do you sell (2nd EV, spa, ADU) — or want to?</li>
+      <li>Who's your EC, and what's driving the electrical scope?</li>
+      <li>Any AHJ or utility you've already cleared EMS/PCS with?</li>
+    </ul>`)}
+
+    ${block("","Stakeholder Strategy", `<p>Sequence: <b>Builder</b> (standardization + option enablement) → <b>Purchasing</b> (one SKU across the range) → <b>EC / MEP-EE</b> (defend the setpoint + non-managed floor) → <b>Utility / AHJ</b> (accept the setpoint line item). ${st.pitch==="HIGH"||st.pitch==="HIGHEST"?"Sustainability/marketing is a warm entry in this market.":"Lead with the engineering value, not policy — weak state tailwind."}</p>`)}
+
+    ${block("","Recommended Sales Motion", `<p>${anyOver?`Walk in pre-built for 400\u2192200 avoidance: choose the largest optioned plan, show the ${ahaNum}, then the ${rA(largest.c.service)} hold. \u201cLet me show you what most production lots start as — and what it could be.\u201d`:`This is an option-enablement / differentiation motion. Don't force capacity ROI — sell the headroom and the homeowner story.`}</p>`)}
+
+    ${block("risk","Deal Risk", `<p>${anyBust?`<b>Real risk:</b> ${largest.role} non-managed floor (${rA(largest.c.floorA)}) exceeds the setpoint (${rA(largest.c.setA)}). SPAN can't hold that with load management alone — don't claim it does. Fix the design or raise the service first.`:""}${!anyOver?" Weakest point: no hard capacity problem — an honest \u201cSPAN enables\u201d can read as \u201cnice-to-have.\u201d Anchor to option enablement value, and don't manufacture a 400A story that isn't there."+(anyBust?"":""):""}${anyOver&&!anyBust?"Main risk is AHJ acceptance of the setpoint line item — de-risk it with an early code conversation. Don't let \u201cconnected load\u201d get conflated with the managed demand in the room.":""} Credibility over a forced win.</p>`)}
+    <div class="disc" style="border-top-color:var(--red)"><b>Internal use only — do not distribute to the builder, contractor, engineer, utility, or AHJ.</b> Contains competitive positioning and deal strategy. Technical conclusions are preliminary; SPAN is not the Engineer of Record. Share the builder-facing Design Review instead.</div>
+    <div class="foot"><span>INTERNAL — SPAN Energy Intelligence sales brief · not for distribution</span><span>${builder} · ${date}</span></div>
+  </section>`;
+}
+
+/* =======================================================
+   INPUT RENDER + WIRING
+   ======================================================= */
+/* ---- load row helpers: VA = volts x amps, unless manually overridden ---- */
+function loadAmps(r){ const v=r.volts||240; return r.va/v; }
+function setVolts(i,v){ touch(); const r=PLANS[ACTIVE].loads[i]; const a=loadAmps(r); r.volts=v;
+  if(!r.vaManual) r.va=+(v*a).toFixed(1); renderRows(); refresh(); }
+function setAmps(i,a){ touch(); const r=PLANS[ACTIVE].loads[i]; r.va=+((r.volts||240)*a).toFixed(1); r.vaManual=false; renderRows(); refresh(); }
+function setVA(i,va){ touch(); const r=PLANS[ACTIVE].loads[i]; r.va=va; r.vaManual=true; renderRows(); refresh(); }
+function revertVA(i){ touch(); const r=PLANS[ACTIVE].loads[i]; r.vaManual=false; renderRows(); refresh(); }
+function delRow(i){ touch(); PLANS[ACTIVE].loads.splice(i,1); renderRows(); refresh(); }
+function renderRows(){
+  const box=$("loadrows");box.innerHTML="";let last=null;const P=PLANS[ACTIVE];
+  P.loads.forEach((r,i)=>{
+    if(r.cat!==last){const c=document.createElement("div");c.className="catlabel";c.textContent=r.cat;box.appendChild(c);last=r.cat;}
+    const row=document.createElement("div");row.className="lrow";
+    if(r.glauto){
+      row.innerHTML=`<div class="r1"><input type="text" value="${r.desc.replace(/"/g,'&quot;')}" disabled style="opacity:.7"></div>
+      <div class="r2" style="grid-template-columns:1fr 84px">
+        <div class="fl"><span>sq ft \u00d7 VA/ft\u00b2 (edition)</span><input type="number" value="${r.qty}" disabled style="opacity:.7"></div>
+        <div class="fl va"><span>Total VA</span><input type="number" value="${Math.round(r.qty*r.va)}" disabled style="opacity:.7"></div>
+      </div>`;
+      box.appendChild(row); return;
+    }
+    const volts=r.volts||240, amps=loadAmps(r);
+    row.innerHTML=`<div class="r1">
+      <input type="text" value="${r.desc.replace(/"/g,'&quot;')}" title="${(r.note||"").replace(/"/g,'&quot;')}" onchange="touch();PLANS[${ACTIVE}].loads[${i}].desc=this.value">
+      ${r.est?'<span class="est" title="Highly variable equipment — verify nameplate">EST</span>':""}
+      <input type="number" value="${r.qty}" title="Quantity" style="width:42px;flex:0 0 42px" onchange="touch();PLANS[${ACTIVE}].loads[${i}].qty=parseFloat(this.value)||0;renderRows();refresh()">
+    </div>
+    <div class="r2">
+      <div class="fl"><span>Volts</span><select onchange="setVolts(${i},parseFloat(this.value))">
+        ${[120,208,240].map(v=>`<option value="${v}" ${v===volts?"selected":""}>${v}</option>`).join("")}
+      </select></div>
+      <div class="fl"><span>Amps</span><input type="number" step="0.1" value="${amps.toFixed(1)}" onchange="setAmps(${i},parseFloat(this.value)||0)"></div>
+      <div class="fl va ${r.vaManual?"man":""}"><span>VA / unit${r.vaManual?' <b class="manflag">MANUAL</b>':""}</span><input type="number" value="${r.va}" onchange="setVA(${i},parseFloat(this.value)||0)"></div>
+      <div class="fl"><span>OCPD</span><input type="number" value="${r.ocpd||""}" placeholder="—" title="Informational only" onchange="touch();PLANS[${ACTIVE}].loads[${i}].ocpd=parseFloat(this.value)||null;refresh()"></div>
+      <div class="fl"><span>PwrUp</span><span class="mgd"><input type="checkbox" ${r.managed?"checked":""} ${mgdEligible(r.cat)?"":"disabled title='Not a manageable load — cooking, dryer, refrigeration and lighting are never curtailed'"} onchange="touch();PLANS[${ACTIVE}].loads[${i}].managed=this.checked;refresh()"></span></div>
+      <div class="fl"><span>&nbsp;</span><button class="del" title="Remove load" onclick="delRow(${i})">\u00d7</button></div>
+    </div>
+    ${r.vaManual?`<button class="rv" onclick="revertVA(${i})">\u21ba revert to volts \u00d7 amps</button>`:""}`;
+    box.appendChild(row);
+  });
+}
+function renderFuture(){
+  const box=$("futbox");box.innerHTML="";const P=PLANS[ACTIVE];
+  FUTURE.forEach(f=>{
+    const l=document.createElement("label");
+    l.innerHTML=`<input type="checkbox" ${P.future[f.id]?"checked":""} onchange="PLANS[${ACTIVE}].future['${f.id}']=this.checked;refresh()"> ${f.label}`;
+    box.appendChild(l);
+  });
+}
+function loadPlanFields(){
+  const P=PLANS[ACTIVE];
+  $("pname").value=P.name;$("psqft").value=P.sqft;$("pservice").value=P.service;$("ppct").value=PCT;
+  renderRows();renderFuture();
+}
+function syncGL(){
+  /* general lighting row: qty = sqft, VA/ft2 = edition unit load (3 VA 2020/2023, 2 VA 2026) */
+  PLANS.forEach(P=>{const g=P.loads.find(r=>r.glauto);if(g){g.qty=P.sqft;g.va=lightingUnitVA();g.desc="General lighting + receptacles ("+lightingUnitVA()+" VA/ft\u00b2)";}});
+}
+function addRow(){touch();PLANS[ACTIVE].loads.push({cat:"Other / Custom",desc:"Custom load",qty:1,volts:240,va:0,ocpd:null,managed:false});renderRows();refresh();}
+function addQuick(id){
+  const q=QUICKADD.find(x=>x.id===id); if(!q)return;
+  touch();
+  if(q.addsArea){ const P=PLANS[ACTIVE]; P.sqft=(P.sqft||0)+q.addsArea; $("psqft").value=P.sqft;
+    P.areaNote=true; syncGL(); renderRows(); refresh(); return; }
+  PLANS[ACTIVE].loads.push({cat:q.cat,desc:q.label,qty:1,volts:q.volts,va:q.va,ocpd:q.ocpd,
+    managed:q.mgd&&mgdEligible(q.cat), est:q.est, note:q.note});
+  renderRows();refresh();
+}
+function renderQuickAdd(){
+  const g=$("qagrid"); g.innerHTML="";
+  QUICKADD.forEach(q=>{
+    const b=document.createElement("button");
+    b.title=q.label+" — "+q.note+"\n\n"+PLANNING_TIP;
+    b.innerHTML=q.label+(q.est?' <i>est.</i>':"");
+    b.onclick=()=>addQuick(q.id);
+    g.appendChild(b);
+  });
+  $("planningtip").innerHTML="<b>Planning defaults.</b> "+PLANNING_TIP;
+}
+let POOL_STATE=null;
+function togglePool(){
+  const box=$("poolbox");
+  if(box.style.display!=="none"){box.style.display="none";return;}
+  if(!POOL_STATE)POOL_STATE={sel:POOL_PKG.reduce((o,c)=>(o[c.id]=c.on,o),{}),feeder:60};
+  box.style.display="block"; renderPool();
+}
+function renderPool(){
+  const box=$("poolbox");
+  box.innerHTML=POOL_PKG.map(c=>`<label class="pl" title="${c.note.replace(/"/g,'&quot;')}\n\n${PLANNING_TIP}">
+      <input type="checkbox" ${POOL_STATE.sel[c.id]?"checked":""} onchange="POOL_STATE.sel['${c.id}']=this.checked;renderPool()">
+      <span>${c.label}${c.est?' <i style="color:#FF9500;font-style:normal;font-size:9px">est.</i>':""}<br><b>${c.volts} V · ${Math.round(c.va/c.volts*10)/10} A · ${c.va.toLocaleString()} VA</b></span></label>`).join("")
+    +`<div class="pf"><div><label>Pool subpanel feeder OCPD (informational — feeder capacity is not connected load)</label></div>
+      <input type="number" value="${POOL_STATE.feeder}" onchange="POOL_STATE.feeder=parseFloat(this.value)||0">
+      </div>
+      <button class="addbtn" style="margin-top:7px" onclick="addPool()">Add ${POOL_PKG.filter(c=>POOL_STATE.sel[c.id]).length} pool load(s) — ${POOL_PKG.filter(c=>POOL_STATE.sel[c.id]).reduce((t,c)=>t+c.va,0).toLocaleString()} VA connected</button>`;
+}
+function addPool(){
+  touch();
+  POOL_PKG.filter(c=>POOL_STATE.sel[c.id]).forEach(c=>{
+    PLANS[ACTIVE].loads.push({cat:"Pool / Spa",desc:"Pool: "+c.label.replace(" (optional)",""),qty:1,
+      volts:c.volts,va:c.va,ocpd:c.ocpd,managed:true,est:c.est,note:c.note});
+  });
+  PLANS[ACTIVE].poolFeeder=POOL_STATE.feeder;
+  $("poolbox").style.display="none";
+  renderRows();refresh();
+}
+function snapshot(P){
+  return {sqft:P.sqft, service:P.service,
+    loads:P.loads.filter(r=>r.qty*r.va>0).map(r=>({d:r.desc,va:r.qty*r.va}))};
+}
+function diffText(before,after,label){
+  const out=[];
+  if(before.sqft!==after.sqft)out.push(`Conditioned area: <b>${before.sqft.toLocaleString()} \u2192 ${after.sqft.toLocaleString()} ft\u00b2</b>`);
+  if(before.service!==after.service)out.push(`Service: <b>${before.service}A \u2192 ${after.service}A</b>`);
+  const bd=before.loads.map(x=>x.d), ad=after.loads.map(x=>x.d);
+  const added=ad.filter(x=>bd.indexOf(x)<0), removed=bd.filter(x=>ad.indexOf(x)<0);
+  added.forEach(x=>out.push(`Added: <b>${x}</b>`));
+  removed.forEach(x=>out.push(`<span class="x">Removed: ${x}</span>`));
+  const bt=before.loads.reduce((t,x)=>t+x.va,0), at=after.loads.reduce((t,x)=>t+x.va,0);
+  if(bt!==at)out.push(`Connected load: <b>${bt.toLocaleString()} \u2192 ${at.toLocaleString()} VA</b>`);
+  return `<div><b>${label} applied</b></div>`+(out.length?`<ul>${out.map(o=>`<li>${o}</li>`).join("")}</ul>`:"<ul><li>No values changed.</li></ul>");
+}
+function applyProfile(k){
+  const P=PLANS[ACTIVE], pr=PROFILES[k];
+  if(P.dirty){
+    const ok=confirm("This plan has manual edits.\n\nApplying the \u201c"+pr.label+"\u201d profile will replace the load list and area with preset values.\n\nOK = apply preset (your edits are discarded)\nCancel = keep your custom data");
+    if(!ok)return;
+  }
+  const before=snapshot(P);
+  P.name=pr.name; P.sqft=pr.sqft; P.service=pr.service;
+  P.loads=PRESETS[k](pr.sqft);
+  P.profile=k; P.dirty=false;
+  syncGL();
+  const after=snapshot(P);
+  $("pname").value=P.name; $("psqft").value=P.sqft; $("pservice").value=P.service;
+  const box=$("profdiff"); box.style.display="block"; box.innerHTML=diffText(before,after,pr.label);
+  renderRows(); refresh();
+}
+function markCustom(){
+  const P=PLANS[ACTIVE]; P.profile=null; P.dirty=false;
+  const box=$("profdiff"); box.style.display="block";
+  box.innerHTML="<div><b>Custom</b></div><ul><li>This plan is now labelled custom project data. Values are unchanged \u2014 only the provenance label changed.</li></ul>";
+  refresh();
+}
+function renderProv(){
+  const P=PLANS[ACTIVE], pv=provenance(P);
+  ["small","large"].forEach(k=>{const b=$("pf-"+k);b.classList.toggle("on",P.profile===k&&!P.dirty);b.classList.toggle("mixed",P.profile===k&&P.dirty);});
+  $("pf-custom").classList.toggle("on",!P.profile);
+  $("provtag").textContent=pv.txt;
+}
+function setPlan(i){ACTIVE=i;document.querySelectorAll("#plantabs button").forEach((b,j)=>b.classList.toggle("on",j===i));loadPlanFields();refresh();}
+function setMode(m){
+  MODE=m;["compare","single","mf"].forEach(x=>$("m-"+x).classList.toggle("on",x===m));
+  $("plantabs").style.display=m==="compare"?"flex":"none";
+  $("mfunits").style.display=m==="mf"?"block":"none";
+  $("mfgatebox").style.display=m==="mf"?"block":"none";
+  $("modenote").textContent = m==="compare"?"Compare the builder's smallest and largest plan — the largest carries the options that expose the service gap.":m==="mf"?("Multifamily rollup via NEC "+ref("multifamily")+" with per-unit setpoints. Gated behind qualifying conditions."):"Single plan review.";
+  if(m!=="compare"&&ACTIVE>0)setPlan(0);
+  refresh();
+}
+function setView(v){VIEW=v;$("v-builder").classList.toggle("on",v==="builder");$("v-brief").classList.toggle("on",v==="brief");
+  $("outBuilder").classList.toggle("hideview",v!=="builder");$("outBrief").classList.toggle("hideview",v!=="brief");}
+let ORIENT="portrait";
+function setOrient(o){ ORIENT=o;
+  $("pagecss").textContent="@page{size:letter "+o+";margin:"+(o==="landscape"?".45in":".5in")+"}";
+  $("or-portrait").classList.toggle("on",o==="portrait");
+  $("or-landscape").classList.toggle("on",o==="landscape");
+  document.documentElement.setAttribute("data-orient",o);
+}
+function doPrint(){document.body.className=VIEW==="builder"?"print-builder":"print-internal";window.print();}
+
+function syncSetpoint(){
+  const P=PLANS[ACTIVE];
+  $("pusetA").textContent=Math.round(P.service*(PCT/100))+"A";
+  if($("ppct2")!==document.activeElement)$("ppct2").value=PCT;
+  if($("ppct")!==document.activeElement)$("ppct").value=PCT;
+}
+function setEdition(){ EDITION=$("edition").value;
+  const r=R();
+  $("editionnote").innerHTML = "Article "+r.article+" ("+r.chapter+") · general lighting "+r.lightingUnitVA+" VA/ft\u00b2 per "+r.lightingUnit
+    +" · EMS "+r.ems+(r.pcs?" · PCS "+r.pcs:" · PCS not in this edition")
+    + (r.verify?"<br><b style='color:#e8c877'>[VERIFY]</b> "+r.note:"");
+  loadPlanFields(); refresh(); }
+function setMethod(){ METHOD=$("method").value; refresh(); }
+function refresh(){
+  const P=PLANS[ACTIVE];
+  P.name=$("pname").value;P.sqft=nInt($("psqft").value);P.service=nInt($("pservice").value);
+  syncGL(); syncSetpoint(); renderProv();
+  const A=analyze();
+  renderBuilder(A);renderBrief(A);
+}
+
+(function init(){
+  const sel=$("state");Object.keys(STATES).forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s;sel.appendChild(o);});
+  sel.value="Georgia";
+  $("pname").addEventListener("input",()=>{touch();refresh();});
+  /* sq ft drives the derived general-lighting row, so the load form must redraw too */
+  $("psqft").addEventListener("input",()=>{touch();refresh();renderRows();});   /* refresh() commits sqft + syncGL, then redraw the form */
+  $("pservice").addEventListener("change",()=>{touch();refresh();});
+  $("ppct2").addEventListener("input",()=>{PCT=nInt($("ppct2").value)||80;refresh();});
+  $("ppct").addEventListener("input",()=>{PCT=nInt($("ppct").value)||80;refresh();});
+  ["builder","state","ahj","utility","homes","units","mfqual","prepby","preprole"].forEach(id=>$(id).addEventListener("input",refresh));
+  ["state","mfqual"].forEach(id=>$(id).addEventListener("change",refresh));
+  $("edition").addEventListener("change",()=>{setEdition(); const m=$("mfsec"); if(m)m.textContent=ref("multifamily");});
+  $("method").addEventListener("change",setMethod);
+  renderQuickAdd();wireOneLine();renderOneLine();loadPlanFields();renderProv();setEdition();
+})();
+</script>
+</body>
+</html>
