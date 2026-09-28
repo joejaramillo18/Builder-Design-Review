@@ -578,7 +578,8 @@
           </select></div>
         </div>
         <div class="note" id="adunote" style="display:none"></div>
-        <button class="addbtn" style="margin-top:6px;border-style:solid;border-color:#2a4a38;color:var(--green)" onclick="bestCaseBalance()">Best-case balance (all loads)</button>
+        <button class="addbtn" style="margin-top:6px;border-style:solid;border-color:#2a4a38;color:var(--green)" onclick="smartBalanceByClass()">Smart balance by classification</button>
+        <button class="addbtn" style="margin-top:5px" onclick="bestCaseBalance()">Best-case balance (even the panels)</button>
         <button class="addbtn" style="margin-top:5px" onclick="rebalanceFuture()">Re-balance future loads only</button>
         <div id="balreport" class="balrep" style="display:none"></div>
       </div>
@@ -641,6 +642,8 @@
         <div class="qagrid" id="qagrid"></div>
         <button class="addbtn" style="margin-top:5px" onclick="togglePool()">+ Pool equipment / subpanel…</button>
         <div id="poolbox" class="poolbox" style="display:none"></div>
+        <button class="addbtn" style="margin-top:5px" onclick="toggleHP()">+ Heat pump / geothermal system…</button>
+        <div id="hpbox" class="poolbox" style="display:none"></div>
         <div class="note">${""}</div>
       </div>
       <div class="note" id="planningtip"></div>
@@ -707,9 +710,15 @@
           <div class="fld"><label>Battery systems (gateways)</label><input id="ssgwqty" type="number" min="1" value="1"></div>
           <div class="fld"><label>&nbsp;</label></div>
         </div>
-        <div class="row2" id="sspwrow">
+        <div class="row3" id="sspwrow">
           <div class="fld"><label>PW3 quantity</label><input id="sspwqty" type="number" min="1" value="2"></div>
           <div class="fld"><label>Expansion units</label><input id="ssexpqty" type="number" min="0" value="0"></div>
+          <div class="fld"><label>PW3 output / unit</label><select id="sspwout">
+            <option value="48">48 A · 11.5 kW (default)</option>
+            <option value="41.7">41.7 A · 10 kW</option>
+            <option value="31.7">31.7 A · 7.6 kW</option>
+            <option value="24">24 A · 5.8 kW</option>
+          </select></div>
         </div>
         <div class="row2" id="ssaprow" style="display:none">
           <div class="fld"><label>aPower quantity</label><input id="ssapqty" type="number" min="1" value="2"></div>
@@ -741,7 +750,11 @@
           <option value="pcs">SPAN Power Control System (705.13)</option>
           <option value="supply">Supply-side tap (705.11)</option>
         </select></div>
-        <div class="note">Smart Panel busbar is 225 A. 120% rule: main + backfeed ≤ 1.2 × busbar. SPAN's Power Control System can hold combined current to the busbar and remove the 120% limit. Confirm against the actual equipment and utility/AHJ rules.</div>
+        <div class="fld" id="ssbatptsrow"><label>Battery interconnection</label><select id="ssbatpts">
+          <option value="single">All battery systems on one busbar (backfeed summed)</option>
+          <option value="pergw">Separate point of connection per battery system</option>
+        </select></div>
+        <div class="note">Smart Panel busbar is 225 A. 120% rule: main + backfeed ≤ 1.2 × busbar. Multiple battery systems on separate points of connection are evaluated per point per NEC 705.12, subject to AHJ. SPAN's Power Control System (705.13) can hold combined current to the busbar and remove the 120% limit. Confirm against the actual equipment and utility/AHJ rules.</div>
       </div>
       <div class="fld" style="margin-top:8px"><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" id="ssgenon" style="width:auto;accent-color:var(--green)"> Generator present</label></div>
       <div class="row2" id="ssgenwrap" style="display:none">
@@ -1432,7 +1445,9 @@ function pcsAvail(){ return !!R().pcs; }
 /* =======================================================
    LOAD PRESETS
    ======================================================= */
-const CATS=["General Lighting & Receptacles","Small Appliance & Laundry","Cooking","Dryer","Fastened Appliances","Water Heating","HVAC — Cooling","HVAC — Heating","HVAC — Air Handler","EV & Continuous","Pool / Spa","Battery / ESS","Other / Custom"];
+const CATS=["General Lighting & Receptacles","Small Appliance & Laundry","Cooking","Dryer","Fastened Appliances","Water Heating","HVAC — Cooling","HVAC — Heating","HVAC — Air Handler","HVAC — Heat Pump System","EV & Continuous","Pool / Spa","Battery / ESS","Other / Custom"];
+/* Roles inside a linked heat-pump / geothermal system (see hvacSystems / 220.60). */
+const HP_ROLES={compressor:"Compressor (heat + cool)",backup:"Backup / aux heat",ah:"Air handler / loop pump"};
 function GLrow(sf){return{cat:"General Lighting & Receptacles",desc:"General lighting + receptacles",qty:sf,va:lightingUnitVA(),managed:false,glauto:true};}
 const PRESETS={
  small:(sf)=>[GLrow(sf),
@@ -1512,8 +1527,11 @@ const POOL_PKG=[
    Eligibility does not mean enrolled — HVAC defaults to OFF and is enrolled only
    when the project team chooses to, since AHJ/builder acceptance is a design call. */
 const MGD_OK=["EV & Continuous","Pool / Spa","Water Heating","Battery / ESS","Other / Custom",
-              "HVAC — Cooling","HVAC — Heating"];
+              "HVAC — Cooling","HVAC — Heating","HVAC — Heat Pump System"];
 function mgdEligible(cat){ return MGD_OK.indexOf(cat)>-1; }
+/* A heat-pump-system row is managed by role: compressor and backup/aux heat are
+   curtailable; the air handler / loop pump is not managed independently. */
+function hpRoleManageable(role){ return role!=="ah"; }
 
 /* future-load definitions: kw(VA), managed, nonManagedFloorImpact */
 /* =========================================================
@@ -1560,7 +1578,14 @@ let SSVIEW="sheet";
    initialiser and ssOf() hydration path draw from here so a plan rehydrated
    from a share link cannot end up missing a field. */
 const SS_DEFAULT=()=>({battery:"pw3",pwQty:2,expQty:0,apQty:2,gwQty:1,socPct:100,reservePct:10,
-  outputOverride:"",pvAvgKw:0,pvKwStc:0,busbarA:225,mainA:200,pvInvA:0,battInvA:"",icMethod:"loadside"});
+  outputOverride:"",pvAvgKw:0,pvKwStc:0,busbarA:225,mainA:200,pvInvA:0,battInvA:"",icMethod:"loadside",
+  pwOutA:48,battPts:"single"});
+/* Tesla Powerwall 3 configurable maximum output (Power Control feature): each unit
+   can be commissioned to 48 A / 11.5 kW (default), 41.7 A / 10 kW, 31.7 A / 7.6 kW,
+   or 24 A / 5.8 kW. Limiting output lowers both continuous backup power and the
+   current counted for the 705.12 interconnection check. Source: Tesla PW3 docs. */
+const PW3_OUT={48:11.5,41.7:10,31.7:7.6,24:5.8};
+function pw3UnitKw(a){ return PW3_OUT[a]!=null?PW3_OUT[a]:11.5; }
 let SSP={
   name:"", notes:"", service:200, sysType:"solstor", genOn:false, genKw:0, backupScope:"whole",
   ss:SS_DEFAULT(),
@@ -1662,11 +1687,50 @@ function docMeta(){ return { id:ensureDocId(),
    ======================================================= */
 const sc=(loads,cat)=>loads.filter(r=>r.cat===cat).reduce((s,r)=>s+r.qty*r.va,0);
 /* ---------- shared bucket extraction (raw connected VA) ---------- */
+/* ---------- Heat-pump / geothermal systems (NEC 220.60 noncoincident) ----------
+   A heat-pump system uses ONE compressor for both heating and cooling, so its
+   heating and cooling values are never added to each other. Electric backup /
+   aux heat supplements the compressor IN HEATING MODE, so it is coincident with
+   the compressor there. The governing contribution per system is:
+       heatingMode = compressor + backup + air handler
+       coolingMode = compressor + air handler
+       governing   = max(heatingMode, coolingMode)
+   Independent systems are then SUMMED (each takes its own larger-of-heat/cool);
+   heating and cooling of the SAME system are never summed. Rows are grouped by
+   r.sys; role is r.role (compressor | backup | ah). This is additive: simple
+   split systems entered under HVAC — Cooling/Heating/Air Handler are untouched
+   and still flow through the legacy larger-of term in the engines. */
+function hvacSystems(L){
+  const m={};
+  L.forEach(r=>{
+    if(r.cat!=="HVAC — Heat Pump System")return;
+    const va=r.qty*r.va; if(va<=0)return;
+    const id=r.sys||"hp";
+    const s=m[id]||(m[id]={id, name:r.sysName||("HVAC system "+id),
+      comp:0,compMgd:0, backup:0,backupMgd:0, ah:0,ahMgd:0});
+    const role=r.role||"compressor";
+    const mgd=!!r.managed && hpRoleManageable(role);
+    if(role==="backup"){ s.backup+=va; if(mgd)s.backupMgd+=va; }
+    else if(role==="ah"){ s.ah+=va; }
+    else { s.comp+=va; if(mgd)s.compMgd+=va; }
+  });
+  return Object.keys(m).map(k=>{
+    const s=m[k];
+    const heatMode=s.comp+s.backup+s.ah;
+    const coolMode=s.comp+s.ah;
+    const heatGoverns=heatMode>=coolMode;               // true whenever backup>0
+    const gov=Math.max(heatMode,coolMode);
+    const govMgd=heatGoverns ? (s.compMgd+s.backupMgd) : s.compMgd;  // managed share of the governing mode (ah never managed)
+    const conn=s.comp+s.backup+s.ah;
+    return {...s, heatMode, coolMode, heatGoverns, gov, govMgd, conn};
+  });
+}
 function buckets(L){
   L.forEach(r=>{ if(r.managed&&!mgdEligible(r.cat))r.managed=false; });
   const nameplate=r=>r.qty*r.va;
   const sumN=cat=>L.filter(r=>r.cat===cat).reduce((s,r)=>s+nameplate(r),0);
   const catMgd=cat=>L.filter(r=>r.cat===cat&&r.managed).reduce((s,r)=>s+nameplate(r),0);
+  const HP=hvacSystems(L);
   return {
     lighting: sumN("General Lighting & Receptacles"),
     smallAppl: sumN("Small Appliance & Laundry"),
@@ -1678,6 +1742,10 @@ function buckets(L){
     waterUnmgd: L.filter(r=>r.cat==="Water Heating"&&!r.managed).reduce((s,r)=>s+nameplate(r),0),
     cool: sumN("HVAC — Cooling"), heat: sumN("HVAC — Heating"), ah: sumN("HVAC — Air Handler"),
     coolMgd: catMgd("HVAC — Cooling"), heatMgd: catMgd("HVAC — Heating"),
+    hpSystems: HP,
+    hpGov: HP.reduce((t,s)=>t+s.gov,0),
+    hpGovMgd: HP.reduce((t,s)=>t+s.govMgd,0),
+    hpConn: HP.reduce((t,s)=>t+s.conn,0),
     evCont: sumN("EV & Continuous")+sumN("Pool / Spa"),
     evContMgd: catMgd("EV & Continuous")+catMgd("Pool / Spa"),
     other: sumN("Other / Custom")+sumN("Battery / ESS"),
@@ -1709,6 +1777,13 @@ function cookingDemand(rows){
   if(count<=0&&small<=0)return {dem:0,count:0,over:0,small:0,smallN:0};
   return {dem:colC(count)+over+small,count,over,small,smallN};
 }
+/* HVAC output-row label: reflects heat-pump / geothermal 220.60 handling when present. */
+function hvacLabel(b){
+  const hasSplit=(b.cool+b.heat+b.ah)>0, hasHP=(b.hpConn||0)>0;
+  if(hasHP&&hasSplit) return "HVAC — heat pump / geo (220.60 per system) + split (larger of heat / cool)";
+  if(hasHP) return "HVAC — heat pump / geothermal (220.60: compressor + backup heating, larger vs cooling)";
+  return "HVAC (larger of heat / cool + air handler)";
+}
 /* ---------- STANDARD (Article 220 Part III / 2026 Art.120) ---------- */
 function engineStandard(b){
   const genGroup=b.lighting+b.smallAppl;
@@ -1725,7 +1800,10 @@ function engineStandard(b){
   const fastFactor=fastCount>=4?0.75:1;
   const fastDem=fastGroup*fastFactor;
   const dryDem=b.dryer>0?Math.max(b.dryer,5000):0;
-  const hvacDem=Math.max(b.cool,b.heat)+b.ah;
+  /* HVAC term = legacy larger-of (simple split systems) + heat-pump/geothermal
+     systems, each governed per 220.60 (see hvacSystems). Independent terms sum. */
+  const hvacLegacy=Math.max(b.cool,b.heat)+b.ah;
+  const hvacDem=hvacLegacy+b.hpGov;
   const contDem=b.evCont*1.25;
   const genDemVA=genDem+cookDem+fastDem+dryDem+b.other;
   const unitTotal=genDemVA+hvacDem+contDem;
@@ -1735,7 +1813,7 @@ function engineStandard(b){
   const contMgdDem=b.evContMgd*1.25;
   const gov=Math.max(b.cool,b.heat);
   const govMgdFrac=b.cool>=b.heat?(b.cool>0?b.coolMgd/b.cool:0):(b.heat>0?b.heatMgd/b.heat:0);
-  const hvacMgdDem=gov*govMgdFrac;
+  const hvacMgdDem=gov*govMgdFrac + b.hpGovMgd;
   const waterMgdDem=b.waterMgd*fastFactor;
   const mgdDem=contMgdDem+hvacMgdDem+waterMgdDem+b.otherMgd;
   return {rows:[
@@ -1743,7 +1821,7 @@ function engineStandard(b){
       ["Cooking equipment ("+CK.count+" appliance"+(CK.count===1?"":"s")+", Column C)", b.cooking, cookDem, ref("range")],
       ["Fastened appliances + water heating", fastGroup, fastDem, ref("appliances")],
       ["Clothes dryer", b.dryer, dryDem, ref("dryer")],
-      ["HVAC (larger of heat / cool + air handler)", b.cool+b.heat+b.ah, hvacDem, ref("noncoincident")],
+      [hvacLabel(b), b.cool+b.heat+b.ah+b.hpConn, hvacDem, ref("noncoincident")],
       ["Continuous loads (EV charger / pool) @125%", b.evCont, contDem, ref("evse")],
       ["Other", b.other, b.other, null]
     ],
@@ -1755,7 +1833,9 @@ function engineOptional(b){
   const pool=b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened+b.waterUnmgd+b.waterMgd+b.other;
   const optDem=x=>x<=10000?x:10000+(x-10000)*0.40;
   const genDem=optDem(pool);
-  const hvacDem=Math.max(b.cool,b.heat)+b.ah;
+  /* HVAC @ 100% under 220.82(C): legacy larger-of split systems + heat-pump/geo
+     systems each governed per 220.60. Independent terms sum. */
+  const hvacDem=Math.max(b.cool,b.heat)+b.ah+b.hpGov;
   const contDem=b.evCont*1.25;
   const unitTotal=genDem+hvacDem+contDem;
   /* Floor = demand from unmanaged loads only, driven per load by the PwrUp flag.
@@ -1766,13 +1846,13 @@ function engineOptional(b){
   const contMgdDem=b.evContMgd*1.25;
   const gov=Math.max(b.cool,b.heat);
   const govMgdFrac=b.cool>=b.heat?(b.cool>0?b.coolMgd/b.cool:0):(b.heat>0?b.heatMgd/b.heat:0);
-  const hvacMgdDem=gov*govMgdFrac;
+  const hvacMgdDem=gov*govMgdFrac + b.hpGovMgd;
   const nonMgdVA=genDemFloor+(hvacDem-hvacMgdDem)+(contDem-contMgdDem);
   const mgdDem=unitTotal-nonMgdVA;
   return {rows:[
       ["General load pool (nameplate, excl. HVAC + continuous)", pool, genDem, ref("optional")],
       ["  first 10 kVA @ 100%, remainder @ 40%", null, null, ref("optional")],
-      ["HVAC @ 100% (larger of heat / cool)", b.cool+b.heat+b.ah, hvacDem, ref("optional")],
+      [hvacLabel(b)+" @ 100%", b.cool+b.heat+b.ah+b.hpConn, hvacDem, ref("optional")],
       ["Continuous loads (EV charger / pool) @125%", b.evCont, contDem, ref("evse")]
     ],
     genDemVA:genDem, hvacVA:hvacDem, contSubVA:contDem,
@@ -1783,7 +1863,7 @@ function calc(plan){
   const b=buckets(L);
   const E = METHOD==="standard" ? engineStandard(b) : engineOptional(b);
   const rawConnectedVA = b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened
-      +b.waterMgd+b.waterUnmgd+b.cool+b.heat+b.ah+b.evCont+b.other;
+      +b.waterMgd+b.waterUnmgd+b.cool+b.heat+b.ah+b.hpConn+b.evCont+b.other;
   const generalConnVA = b.lighting+b.smallAppl+b.cooking+b.dryer+b.fastened+b.waterUnmgd+b.other;
   const genDemVA=E.genDemVA, hvacVA=E.hvacVA, contSubVA=E.contSubVA, cont25=E.cont25;
   const managedContinuousVA=E.mgdContVA;
@@ -2450,6 +2530,24 @@ function renderBuilder(A){
    "Utility service and metering requirements ("+util+")."
   ];
   if(METHOD==="standard")verify.push(`Water heating is grouped with fastened-in-place appliances under NEC ${ref("appliances")} and included in the 4-or-more 75% demand factor. This is a common-practice assumption for a preliminary review, not an engineered determination.`);
+  if(A.plans.some(p=>p.plan.loads.some(r=>r.cat==="HVAC — Heat Pump System"&&r.qty*r.va>0)))
+    verify.push(`Heat-pump / geothermal HVAC is evaluated per NEC ${ref("noncoincident")}: within each system the compressor and its electric backup / aux heat are treated as coincident in heating mode (compressor + backup) and compared against cooling mode (compressor), with the larger governing; independent systems are summed. This is the technically supportable governing value. A stamped calc may apply a different but supportable 220.60 grouping (for example, treating the backup blocks as the governing heating term). Confirm the HVAC demand against the mechanical schedule and the engineer of record — VERIFICATION REQUIRED.`);
+  const contRows=[];
+  A.plans.forEach(p=>p.plan.loads.forEach(r=>{ if(r.cont&&r.qty*r.va>0){ const a=Math.round((r.va/(r.volts||240))*1.25); const key=r.desc+"|"+a; if(!contRows.some(x=>x.k===key))contRows.push({k:key,desc:r.desc,a}); }}));
+  if(contRows.length)verify.push(`Continuous loads flagged for 125% conductor / OCPD sizing per NEC 210.19(A) / 210.20(A) (branch) and 215.2 / 215.3 (feeder): ${contRows.map(x=>x.desc+" ≈ "+x.a+" A").join(", ")}. These are minimum branch / feeder sizing figures for the equipment served, not demand. The dwelling calculated demand (Part III standard / 220.82 optional) is not multiplied by 125% for continuous operation.`);
+  const protRows=[];
+  A.plans.forEach(p=>p.plan.loads.forEach(r=>{ if(r.protected&&!r.managed&&r.qty*r.va>0&&protRows.indexOf(r.desc)<0)protRows.push(r.desc); }));
+  if(protRows.length)verify.push(`Protected loads held in the calculated demand and excluded from any PowerUp curtailment / shed sequence: ${protRows.join(", ")}. Protected loads (life-safety, sump / ejector, freeze protection, primary heat, critical refrigeration) stay in the non-managed floor and are never treated as shed candidates.`);
+  /* Phase 5 defensibility disclosures — conditional, only when the case applies. */
+  if(A.plans.some(p=>p.plan.loads.some(r=>r.cat==="Cooking"&&r.va>12000&&r.qty*r.va>0)))
+    verify.push(`One or more cooking appliances exceed 12 kW nameplate. Table 220.55 Column C covers units over 1.75 kW through 12 kW; the tool adds a per-unit adder above 12 kW (Note 1 style) inside the multi-appliance count. This is a tool construction for preliminary review, not a literal Table 220.55 result — confirm the range demand with the engineer of record.`);
+  let dryerCount=0; A.plans.forEach(p=>p.plan.loads.forEach(r=>{ if(r.cat==="Dryer"&&r.qty*r.va>0)dryerCount+=Math.max(0,Math.round(r.qty||0)); }));
+  if(dryerCount>0)verify.push(`Clothes dryers use the larger of 5,000 VA or nameplate per NEC ${ref("dryer")}. The tool demands the larger of total dryer nameplate or 5,000 VA${dryerCount>=5?", and does not apply the Table 220.54 reduction for 5 or more dryers (conservative)":""}${dryerCount>=2?"; for multiple dryers confirm the 5,000 VA per-unit minimum and any Table 220.54 factor":""}.`);
+  const multiGenHVAC=A.plans.some(p=>p.plan.loads.filter(r=>r.cat==="HVAC — Cooling"&&!r.sys&&r.qty*r.va>0).length>1
+    || p.plan.loads.filter(r=>r.cat==="HVAC — Heating"&&!r.sys&&r.qty*r.va>0).length>1);
+  if(multiGenHVAC)verify.push(`Multiple generic HVAC rows are present. The generic HVAC term applies a single larger-of (heating vs cooling) across all non-heat-pump HVAC per NEC ${ref("noncoincident")}, which is correct for one system. For multiple INDEPENDENT systems, or a heat pump with electric backup, enter each as a Heat pump / geothermal system so 220.60 is applied per system and independent systems are summed.`);
+  if(A.plans.some(p=>p.plan.loads.some(r=>(r.cat==="EV & Continuous"||r.cat==="Pool / Spa")&&r.qty*r.va>0)))
+    verify.push(`EV / continuous-receptacle and pool / spa loads are carried in the demand at 125% as a continuous-load treatment scoped to those categories (it is not applied to general loads). Confirm which of these are true continuous loads for the specific installation.`);
   const adopt=stateAdoption();
   if(adopt.raw && (!adopt.supported || adopt.year!==EDITION))
     verify.push(`This review is calculated on the ${R().label}. ${$("state").value} is recorded as NEC ${adopt.raw}. Confirm the governing edition and any local amendments with the AHJ \u2014 adoption varies by county and municipality.`);
@@ -2825,6 +2923,28 @@ function setAmps(i,a){ touch(); const r=PLANS[ACTIVE].loads[i]; r.va=+((r.volts|
 function setVA(i,va){ touch(); const r=PLANS[ACTIVE].loads[i]; r.va=va; r.vaManual=true; renderRows(); refresh(); }
 function revertVA(i){ touch(); const r=PLANS[ACTIVE].loads[i]; r.vaManual=false; renderRows(); refresh(); }
 function delRow(i){ touch(); PLANS[ACTIVE].loads.splice(i,1); renderRows(); refresh(); }
+/* Continuous-load flag (NEC 210.19(A)/210.20(A) branch, 215.2/215.3 feeder):
+   drives the 125% conductor / OCPD SIZING figure only. It never changes the
+   Part III (Standard) or 220.82 (Optional) demand total — see engines, unchanged.
+   The existing EV / continuous-receptacle 125% DEMAND treatment is separate and
+   stays scoped to that category. */
+function contSizingA(r){ return loadAmps(r)*1.25; }
+function contCell(i,r){ return `<div class="fl pwrup" style="flex:0 0 auto;text-align:center"><span>Cont</span><span class="mgd"><input type="checkbox" ${r.cont?"checked":""} title="Continuous load (operates 3+ hours). Drives 125% conductor / OCPD sizing only — not the demand total." onchange="touch();PLANS[${ACTIVE}].loads[${i}].cont=this.checked;renderRows();refresh()"></span></div>`; }
+function contHint(r){ return r.cont?`<div style="font-size:9.5px;color:var(--grey);margin-top:3px">Continuous: <b>${contSizingA(r).toFixed(0)} A</b> min conductor / OCPD (125% sizing figure, not demand)</div>`:""; }
+/* ---- Load classification (Phase 4): Managed / Protected / Standard ----
+   Managed  = PowerUp may curtail it; leaves the non-managed floor (r.managed).
+   Protected= must NOT be curtailed (life-safety, sump / ejector, freeze
+              protection, primary heat, critical refrigeration); stays in the
+              floor and is never a shed candidate (r.protected, non-managed).
+   Standard = never managed by nature (cooking, lighting, general); stays in floor.
+   The floor math keys on r.managed only, so Protected and Standard both remain in
+   the floor exactly as before — this is additive and does not change any demand. */
+function loadClass(r){ return r.managed?"managed":(r.protected?"protected":"standard"); }
+function isGeneralSinglePole(r){
+  return r.glauto || r.cat==="General Lighting & Receptacles" || r.cat==="Small Appliance & Laundry"
+    || ((r.volts||240)===120 && !r.managed);
+}
+function protCell(i,r){ const isMgd=!!r.managed; return `<div class="fl pwrup" style="flex:0 0 auto;text-align:center"><span>Prot</span><span class="mgd"><input type="checkbox" ${r.protected&&!isMgd?"checked":""} ${isMgd?"disabled title='Managed loads are curtailable, not protected'":"title='Protected: must stay on (life-safety, sump / ejector, freeze protection, primary heat). Held in the calc and never a shed candidate.'"} onchange="touch();PLANS[${ACTIVE}].loads[${i}].protected=this.checked;if(this.checked)PLANS[${ACTIVE}].loads[${i}].managed=false;renderRows();refresh()"></span></div>`; }
 function renderRows(){
   const box=$("loadrows");box.innerHTML="";let last=null;const P=PLANS[ACTIVE];
   P.loads.forEach((r,i)=>{
@@ -2841,12 +2961,45 @@ function renderRows(){
       </div>`;
       box.appendChild(row); return;
     }
+    if(r.cat==="HVAC — Heat Pump System"){
+      const volts=r.volts||240, amps=loadAmps(r), isAH=(r.role||"compressor")==="ah";
+      row.innerHTML=`<div class="r1">
+        <span title="Linked heat-pump / geothermal system — compressor + backup evaluated together per NEC 220.60" style="flex:0 0 auto;background:#12312a;border:1px solid var(--green);color:var(--green);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;letter-spacing:.04em">${(r.sysName||r.sys||"SYS")}</span>
+        <select title="Role in the heat-pump system" style="flex:0 0 auto" onchange="touch();PLANS[${ACTIVE}].loads[${i}].managed=(this.value!=='ah')&&PLANS[${ACTIVE}].loads[${i}].managed;PLANS[${ACTIVE}].loads[${i}].role=this.value;renderRows();refresh()">
+          ${Object.keys(HP_ROLES).map(k=>`<option value="${k}" ${(r.role||"compressor")===k?"selected":""}>${HP_ROLES[k]}</option>`).join("")}
+        </select>
+        <input type="text" value="${r.desc.replace(/"/g,'&quot;')}" title="${(r.note||"").replace(/"/g,'&quot;')}" onchange="touch();PLANS[${ACTIVE}].loads[${i}].desc=this.value">
+        ${r.est?'<span class="est" title="Highly variable equipment — verify nameplate">EST</span>':""}
+        <input type="number" value="${r.qty}" title="Quantity" style="width:42px;flex:0 0 42px" onchange="touch();PLANS[${ACTIVE}].loads[${i}].qty=parseFloat(this.value)||0;renderRows();refresh()">
+        <div class="fl pwrup" style="flex:0 0 auto;text-align:center"><span>PwrUp</span><span class="mgd"><input type="checkbox" ${r.managed&&!isAH?"checked":""} ${isAH?"disabled title='Air handler / loop pump is not curtailed independently'":"title='Managed = PowerUp may curtail this component; uncheck for primary or freeze-protection heat that must stay on'"} onchange="touch();PLANS[${ACTIVE}].loads[${i}].managed=this.checked;if(this.checked)PLANS[${ACTIVE}].loads[${i}].protected=false;renderRows();refresh()"></span></div>
+        ${contCell(i,r)}
+        ${protCell(i,r)}
+      </div>
+      <div class="r2">
+        <div class="fl"><span>Volts</span><select onchange="setVolts(${i},parseFloat(this.value))">
+          ${[120,208,240].map(v=>`<option value="${v}" ${v===volts?"selected":""}>${v}</option>`).join("")}
+        </select></div>
+        <div class="fl"><span>Amps</span><input type="number" step="0.1" value="${amps.toFixed(1)}" onchange="setAmps(${i},parseFloat(this.value)||0)"></div>
+        <div class="fl va ${r.vaManual?"man":""}"><span>VA / unit${r.vaManual?' <b class="manflag">MANUAL</b>':""}</span><input type="number" value="${r.va}" onchange="setVA(${i},parseFloat(this.value)||0)"></div>
+        <div class="fl"><span>OCPD</span><input type="number" value="${r.ocpd||""}" placeholder="—" title="Informational only" onchange="touch();PLANS[${ACTIVE}].loads[${i}].ocpd=parseFloat(this.value)||null;refresh()"></div>
+        ${MODE==="multi"?`<div class="fl pnl"><span>Panel</span><select onchange="touch();PLANS[${ACTIVE}].loads[${i}].panel=this.value;refresh()">
+          ${panelsOf(PLANS[ACTIVE]).map(pn=>`<option value="${pn.id}" ${(r.panel||"A")===pn.id?"selected":""}>${pn.id}</option>`).join("")}
+        </select></div>`:""}
+        <div class="fl"><span>&nbsp;</span><button class="del" title="Remove load" onclick="delRow(${i})">×</button></div>
+      </div>
+      ${contHint(r)}
+      ${(r.role||"compressor")==="compressor"?`<button class="rv" title="Add another compressor + backup unit to this system" onclick="addHPUnit('${r.sys}')">+ add unit to ${(r.sysName||r.sys)}</button>`:""}
+      ${r.vaManual?`<button class="rv" onclick="revertVA(${i})">↺ revert to volts × amps</button>`:""}`;
+      box.appendChild(row); return;
+    }
     const volts=r.volts||240, amps=loadAmps(r);
     row.innerHTML=`<div class="r1">
       <input type="text" value="${r.desc.replace(/"/g,'&quot;')}" title="${(r.note||"").replace(/"/g,'&quot;')}" onchange="touch();PLANS[${ACTIVE}].loads[${i}].desc=this.value">
       ${r.est?'<span class="est" title="Highly variable equipment — verify nameplate">EST</span>':""}
       <input type="number" value="${r.qty}" title="Quantity" style="width:42px;flex:0 0 42px" onchange="touch();PLANS[${ACTIVE}].loads[${i}].qty=parseFloat(this.value)||0;renderRows();refresh()">
-      <div class="fl pwrup" style="flex:0 0 auto;text-align:center"><span>PwrUp</span><span class="mgd"><input type="checkbox" ${r.managed?"checked":""} ${mgdEligible(r.cat)?"":"disabled title='Not a manageable load — cooking, dryer, refrigeration and lighting are never curtailed'"} onchange="touch();PLANS[${ACTIVE}].loads[${i}].managed=this.checked;refresh()"></span></div>
+      <div class="fl pwrup" style="flex:0 0 auto;text-align:center"><span>PwrUp</span><span class="mgd"><input type="checkbox" ${r.managed?"checked":""} ${mgdEligible(r.cat)?"":"disabled title='Not a manageable load — cooking, dryer, refrigeration and lighting are never curtailed'"} onchange="touch();PLANS[${ACTIVE}].loads[${i}].managed=this.checked;if(this.checked)PLANS[${ACTIVE}].loads[${i}].protected=false;renderRows();refresh()"></span></div>
+      ${contCell(i,r)}
+      ${protCell(i,r)}
     </div>
     <div class="r2">
       <div class="fl"><span>Volts</span><select onchange="setVolts(${i},parseFloat(this.value))">
@@ -2860,6 +3013,7 @@ function renderRows(){
       </select></div>`:""}
       <div class="fl"><span>&nbsp;</span><button class="del" title="Remove load" onclick="delRow(${i})">\u00d7</button></div>
     </div>
+    ${contHint(r)}
     ${r.vaManual?`<button class="rv" onclick="revertVA(${i})">\u21ba revert to volts \u00d7 amps</button>`:""}`;
     box.appendChild(row);
   });
@@ -2907,7 +3061,8 @@ function addQuick(id){
   if(q.addsArea){ const P=PLANS[ACTIVE]; P.sqft=(P.sqft||0)+q.addsArea; $("psqft").value=P.sqft;
     P.areaNote=true; syncGL(); renderRows(); refresh(); return; }
   const r={cat:q.cat,desc:q.label,qty:1,volts:q.volts,va:q.va,ocpd:q.ocpd,
-    managed:q.mgd&&mgdEligible(q.cat), est:q.est, note:q.note};
+    managed:q.mgd&&mgdEligible(q.cat), est:q.est, note:q.note,
+    cont:(q.cont!=null?q.cont:q.cat==="EV & Continuous")};
   PLANS[ACTIVE].loads.push(r); assignNewLoad(r);
   renderRows();refresh();
 }
@@ -2949,6 +3104,71 @@ function addPool(){
   PLANS[ACTIVE].poolFeeder=POOL_STATE.feeder;
   $("poolbox").style.display="none";
   renderRows();refresh();
+}
+/* ---- Heat pump / geothermal system inserter ----
+   Seeds a LINKED system (compressor + backup + air handler) sharing one sys id.
+   The 220.60 governing logic (hvacSystems) then treats compressor + backup as
+   coincident in heating and larger-of vs cooling. Every value stays editable and
+   more units can be added to the same system. Planning defaults only. */
+const HP_PRESETS={
+ geo:{label:"Geothermal (ground-source)",
+   note:"Ground-source heat pump: one compressor for heating and cooling, plus electric-resistance backup that runs WITH the compressor in heating mode. Enter one compressor + one backup per stage; add units for multi-stage systems.",
+   rows:[
+     {role:"compressor",desc:"Geo compressor",volts:240,va:5000,ocpd:30,mgd:false,est:true},
+     {role:"backup",    desc:"Electric backup / aux heat",volts:240,va:10000,ocpd:60,mgd:true, est:true},
+     {role:"ah",        desc:"Loop pump / air handler",volts:240,va:924,ocpd:20,mgd:false,est:false}
+   ]},
+ ashp:{label:"Air-source heat pump + backup",
+   note:"Air-source heat pump: one compressor for heating and cooling, plus electric-resistance backup / strip heat that runs with the compressor in heating mode.",
+   rows:[
+     {role:"compressor",desc:"Heat-pump compressor",volts:240,va:7200,ocpd:45,mgd:false,est:true},
+     {role:"backup",    desc:"Electric strip / backup heat",volts:240,va:10000,ocpd:60,mgd:true, est:true},
+     {role:"ah",        desc:"Air handler / blower",volts:240,va:924,ocpd:20,mgd:false,est:false}
+   ]}
+};
+function nextHpId(loads){ let n=0;
+  loads.forEach(r=>{ const m=/^hp(\d+)$/.exec(r.sys||""); if(m)n=Math.max(n,+m[1]); });
+  return "hp"+(n+1); }
+function toggleHP(){
+  const box=$("hpbox");
+  if(box.style.display!=="none"){box.style.display="none";return;}
+  box.style.display="block"; renderHP();
+}
+function renderHP(){
+  const box=$("hpbox");
+  box.innerHTML=Object.keys(HP_PRESETS).map(k=>{
+    const p=HP_PRESETS[k];
+    return `<label class="pl" title="${p.note.replace(/"/g,'&quot;')}\n\n${PLANNING_TIP}" style="cursor:pointer" onclick="addHPSystem('${k}')">
+      <span style="flex:0 0 auto;color:var(--green);font-weight:700">+ ${p.label}</span>
+      <span style="color:#8a8c8c;font-size:9.5px">compressor + backup + air handler, linked as one 220.60 system</span></label>`;
+  }).join("")
+   +`<div class="pf" style="grid-template-columns:1fr"><label>Adds a linked heat-pump system. Compressor and backup are evaluated together per NEC 220.60 (larger of heating vs cooling). Edit every value; add units for multi-stage systems. Backup / aux heat defaults to PowerUp-managed — uncheck it if it must not be curtailed (e.g. primary or freeze-protection heat).</label></div>`;
+}
+function addHPSystem(type){
+  const p=HP_PRESETS[type]; if(!p)return; touch();
+  const P=PLANS[ACTIVE], id=nextHpId(P.loads);
+  const name=(type==="geo"?"Geothermal ":"Heat pump ")+id.replace("hp","#");
+  p.rows.forEach(t=>{
+    const r={cat:"HVAC — Heat Pump System",desc:t.desc,qty:1,volts:t.volts,va:t.va,ocpd:t.ocpd,
+      managed:t.mgd&&hpRoleManageable(t.role), est:t.est, note:p.note,
+      sys:id, sysName:name, role:t.role};
+    P.loads.push(r); assignNewLoad(r);
+  });
+  $("hpbox").style.display="none";
+  renderRows(); refresh();
+}
+/* add another compressor + backup unit to an existing system (multi-stage geo) */
+function addHPUnit(sysId){
+  touch(); const P=PLANS[ACTIVE];
+  const nm=(P.loads.find(r=>r.sys===sysId)||{}).sysName||("HVAC system "+sysId);
+  [{role:"compressor",desc:"Compressor (added unit)",va:5000,ocpd:30,mgd:false,est:true},
+   {role:"backup",desc:"Backup / aux heat (added unit)",va:10000,ocpd:60,mgd:true,est:true}]
+   .forEach(t=>{
+    const r={cat:"HVAC — Heat Pump System",desc:t.desc,qty:1,volts:240,va:t.va,ocpd:t.ocpd,
+      managed:t.mgd, est:t.est, sys:sysId, sysName:nm, role:t.role};
+    P.loads.push(r); assignNewLoad(r);
+  });
+  renderRows(); refresh();
 }
 function snapshot(P){
   return {sqft:P.sqft, service:P.service,
@@ -3092,6 +3312,49 @@ function bestCaseBalance(){
       + "<br>Spread "+rep_.spreadBefore+"% \u2192 <b>"+rep_.spreadAfter+"%</b>. Every assignment is still editable."; }
   renderRows(); renderFuture(); refresh();
   return rep_;
+}
+/* Classification-aware smart balance (Phase 3). Routes by load class, not just VA:
+     Managed  -> SPAN (smart) panels, balanced.
+     Protected + general single-pole -> standard (traditional) subpanels if present,
+       otherwise they stay on the SPAN panel(s) as clearly non-managed loads.
+     Other non-managed loads (e.g. a range, dryer) -> balanced across all panels.
+   Respects each panel's rating via a greedy least-loaded pick within the target
+   group. Proposes only; every assignment stays visible and editable. Distinguishes
+   assigned connected load from calculated demand (panelDistribution is unchanged). */
+function smartBalanceByClass(){
+  const P=PLANS[ACTIVE], pans=panelsOf(P);
+  if(!pans.length) return;
+  const isSpan=pn=>panelSpec(pn).smart===true;
+  const cap=pn=>pn.rating||panelSpec(pn).busRating||200;
+  const spanP=pans.filter(isSpan), tradP=pans.filter(pn=>!isSpan(pn));
+  const before=panelDistribution(P).map(o=>({name:o.name,connA:o.connA,util:o.util}));
+  const items=P.loads.filter(r=>r.qty*r.va>0);
+  const load={}; pans.forEach(pn=>load[pn.id]=0);
+  const lightest=group=>{ let best=group[0],bp=Infinity; group.forEach(pn=>{const pct=load[pn.id]/240/cap(pn); if(pct<bp){bp=pct;best=pn;}}); return best; };
+  const put=(r,pn)=>{ r.panel=pn.id; load[pn.id]+=r.qty*r.va; };
+  const managedTargets=spanP.length?spanP:pans;
+  const generalTargets=tradP.length?tradP:pans;
+  const byVA=(a,b)=>b.qty*b.va-a.qty*a.va;
+  const managed=items.filter(r=>r.managed).sort(byVA);
+  const genProt=items.filter(r=>!r.managed&&(r.protected||isGeneralSinglePole(r))).sort(byVA);
+  const rest=items.filter(r=>!r.managed&&!(r.protected||isGeneralSinglePole(r))).sort(byVA);
+  managed.forEach(r=>put(r,lightest(managedTargets)));
+  genProt.forEach(r=>put(r,lightest(generalTargets)));
+  rest.forEach(r=>put(r,lightest(pans)));
+  P.futureManual={}; balanceFutureLoads(P);
+  const after=panelDistribution(P).map(o=>({name:o.name,connA:o.connA,util:o.util}));
+  const note = (spanP.length&&!tradP.length)
+      ? "No standard subpanel in this layout, so general single-pole and protected loads stayed on the SPAN panel(s). In the downstream architecture those live on a standard subpanel — add one to model it."
+      : (!spanP.length ? "No SPAN managed panel in this layout, so managed loads were balanced across the available panels."
+        : "Managed loads routed to the SPAN panel(s); general single-pole and protected loads to the standard subpanel(s).");
+  P.balanceReport={before,after,note};
+  const box=$("balreport");
+  if(box){ box.style.display="block";
+    box.innerHTML="<b>Smart balance by classification applied.</b><br>"
+      + before.map((o,i)=>o.name+": "+Math.round(o.connA)+"A → <b>"+Math.round(after[i].connA)+"A</b>").join("<br>")
+      + "<br>"+note+" Every assignment is still editable."; }
+  renderRows(); renderFuture(); refresh();
+  return P.balanceReport;
 }
 /* Selecting a future load must not silently land on Panel A. In multi-panel mode
    the selection is balanced immediately (balance is the objective), and the
@@ -3370,10 +3633,11 @@ function ssSystem(p){
   const o={sections,gw,svc,notes:[]};
   if(s.battery==="pw3"){
     const pw=Math.max(1,s.pwQty|0), exp=Math.min(3*pw,Math.max(0,s.expQty|0));
+    const unitA=+(s.pwOutA||48), unitKw=pw3UnitKw(unitA);
     o.mfg="Tesla"; o.batteryLabel="Tesla Powerwall 3"; o.ctrl="Gateway 3"; o.ctrlAmps=200; o.lra=185;
-    o.kwh=(pw+exp)*13.5; o.kw=pw*11.5; o.charge=exp>0?8:5; o.units=pw+exp;
+    o.kwh=(pw+exp)*13.5; o.kw=pw*unitKw; o.charge=exp>0?8:5; o.units=pw+exp; o.pwOutA=unitA;
     o.unitLabel=pw+" PW3"+(exp?" + "+exp+" Expansion":""); o.maxUnits=4*gw;
-    o.notes.push("Tesla normal design basis is 11.5 kW / 48 A per PW3; up to 4 PW3 per Gateway 3. Expansions add energy only.");
+    o.notes.push("Powerwall 3 output set to "+unitA+" A / "+unitKw+" kW per unit (Tesla default 48 A / 11.5 kW; up to 4 PW3 per Gateway 3). Expansions add energy only.");
     if(pw>o.maxUnits)o.notes.push("PW3 count ("+pw+") exceeds 4 per gateway × "+gw+" gateway(s) — add a battery system / gateway or reduce units.");
   } else {
     const ap=Math.max(1,s.apQty|0), isS=s.battery==="apS";
@@ -3524,6 +3788,8 @@ function readSS(){
   s.battery=$("ssbattery").value;
   if($("ssgwqty"))s.gwQty=Math.max(1,nInt($("ssgwqty").value)||1);
   s.pwQty=nInt($("sspwqty").value)||1; s.expQty=Math.max(0,nInt($("ssexpqty").value));
+  if($("sspwout"))s.pwOutA=parseFloat($("sspwout").value)||48;
+  if($("ssbatpts"))s.battPts=$("ssbatpts").value||"single";
   s.apQty=nInt($("ssapqty").value)||1;
   s.socPct=nInt($("sssoc").value)||100; s.reservePct=Math.max(0,nInt($("ssreserve").value));
   s.outputOverride=$("ssoverride").value===""?"":nInt($("ssoverride").value);
@@ -3541,12 +3807,14 @@ function ssSyncVis(){
   if($("ssgenwrap"))$("ssgenwrap").style.display=SSP.genOn?"grid":"none";
   if($("sspwrow"))$("sspwrow").style.display=stor&&s.battery==="pw3"?"grid":"none";
   if($("ssaprow"))$("ssaprow").style.display=stor&&s.battery!=="pw3"?"grid":"none";
+  if($("ssbatptsrow"))$("ssbatptsrow").style.display=stor?"block":"none";
 }
 function ssLoadFields(){
   const s=SSP.ss;
   $("ssname").value=SSP.name; if($("ssnotes"))$("ssnotes").value=SSP.notes||""; $("sssystype").value=SSP.sysType; $("ssservice").value=SSP.service;
   $("ssscope").value=SSP.backupScope; $("ssgenon").checked=SSP.genOn; $("ssgenkw").value=SSP.genKw;
   $("ssbattery").value=s.battery; if($("ssgwqty"))$("ssgwqty").value=s.gwQty||1; $("sspwqty").value=s.pwQty; $("ssexpqty").value=s.expQty; $("ssapqty").value=s.apQty;
+  if($("sspwout"))$("sspwout").value=s.pwOutA||48; if($("ssbatpts"))$("ssbatpts").value=s.battPts||"single";
   $("sssoc").value=s.socPct; $("ssreserve").value=s.reservePct; $("ssoverride").value=s.outputOverride===""?"":s.outputOverride;
   $("sspv").value=s.pvAvgKw; $("sspvstc").value=s.pvKwStc||0;
   if($("ssbusbar"))$("ssbusbar").value=s.busbarA||225; if($("ssmain"))$("ssmain").value=(s.mainA==null?200:s.mainA);
@@ -3641,31 +3909,53 @@ function ssInterconnect(sys){
   const battAuto=sys?Math.round(sys.contKw*1000/240):0;
   const battAutoUsed=(s.battInvA===""||s.battInvA==null);
   const battA=battAutoUsed?battAuto:Math.max(0,+s.battInvA);
-  const backfeed=pvA+battA;
+  /* Points of connection: 705.12 is applied per busbar / per point of connection.
+     Multiple separate battery systems (one gateway each) can land at their own
+     points; with "pergw" the battery backfeed is evaluated per point rather than
+     summed onto a single busbar. Balanced distribution across points is assumed
+     and disclosed — subject to AHJ and the actual busbar/main at each point. */
+  const gw=Math.max(1,(sys&&sys.gw)||1);
+  const perGw=(s.battPts==="pergw");
+  const pts=perGw?gw:1;
+  const battPerPoint=pts>1?battA/pts:battA;
+  const backfeed=pvA+battA;                 // total, single-busbar view
+  const backfeedPoint=pvA+battPerPoint;     // governing point-of-connection view
   const allow120=1.2*busbar;
   const load120=main+backfeed;
-  const pass120=load120<=allow120+1e-6;
-  const passSum=(main+backfeed)<=busbar+1e-6;
-  return {busbar,main,pvA,battA,battAuto,battAutoUsed,backfeed,allow120,load120,pass120,passSum,headroom:allow120-load120,method:(s.icMethod||"loadside")};
+  const load120Point=main+backfeedPoint;
+  const govLoad=perGw?load120Point:load120;
+  const pass120=govLoad<=allow120+1e-6;
+  const passSum=(main+(perGw?backfeedPoint:backfeed))<=busbar+1e-6;
+  return {busbar,main,pvA,battA,battAuto,battAutoUsed,backfeed,backfeedPoint,
+    allow120,load120,load120Point,govLoad,pass120,passSum,gw,pts,perGw,
+    headroom:allow120-govLoad,method:(s.icMethod||"loadside")};
 }
 function ssInterconnectSec(sys){
   const ic=ssInterconnect(sys);
   const eb=t=>`<div style="color:var(--green-d);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin:16px 0 6px">${t}</div>`;
   const chip=(k,v)=>`<div style="background:var(--panel);border-radius:10px;padding:10px 12px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--grey);font-weight:700">${k}</div><div style="font-size:20px;font-weight:700;letter-spacing:-.01em;margin-top:2px">${v}</div></div>`;
   const isPCS=ic.method==="pcs", isSupply=ic.method==="supply", isSum=ic.method==="sum";
-  const trackMax=Math.max(ic.allow120,ic.load120,1);
-  const fillPct=ic.load120/trackMax*100, allowPct=ic.allow120/trackMax*100;
+  const ptTag=ic.perGw?` \u00b7 per point of connection (${ic.pts} points)`:"";
+  const bfShown=ic.perGw?ic.backfeedPoint:ic.backfeed;
+  const trackMax=Math.max(ic.allow120,ic.govLoad,1);
+  const fillPct=ic.govLoad/trackMax*100, allowPct=ic.allow120/trackMax*100;
   const fillCol=ic.pass120?"var(--green)":"var(--red)";
-  const bar=`<div style="position:relative;height:26px;background:var(--panel2);border-radius:6px;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:${fillPct.toFixed(1)}%;background:${fillCol}"></div><div style="position:absolute;left:${allowPct.toFixed(1)}%;top:-3px;bottom:-3px;border-left:2px dashed var(--ink)"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--grey);margin-top:4px"><span>Main + backfeed = <b>${ic.load120.toFixed(0)} A</b></span><span>120% limit = <b>${ic.allow120.toFixed(0)} A</b> (1.2 \u00d7 ${ic.busbar} A)</span></div>`;
+  const bar=`<div style="position:relative;height:26px;background:var(--panel2);border-radius:6px;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100,fillPct).toFixed(1)}%;background:${fillCol}"></div><div style="position:absolute;left:${Math.min(100,allowPct).toFixed(1)}%;top:-3px;bottom:-3px;border-left:2px dashed var(--ink)"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--grey);margin-top:4px"><span>Main + backfeed = <b>${ic.govLoad.toFixed(0)} A</b>${ptTag}</span><span>120% limit = <b>${ic.allow120.toFixed(0)} A</b> (1.2 \u00d7 ${ic.busbar} A)</span></div>`;
+  const ptNote=ic.perGw?` Evaluated per point of connection; each point must be an independent busbar / point of connection sized accordingly \u2014 [VERIFY WITH AHJ].`:"";
+  const relief=`To connect within the busbar: use SPAN's Power Control System (705.13), a supply-side tap (705.11), separate points of connection per battery system, a lower Powerwall 3 output setting, or a smaller main. Selecting one of those above updates this check.`;
   let verdict;
   if(isSupply){
     verdict=`<div style="border-left:4px solid var(--green);background:var(--greenwash);padding:9px 12px;border-radius:8px;font-size:12px"><b>Supply-side tap \u2014 705.11.</b> Connected ahead of the service main, so the 120% busbar rule does not apply. Tap conductors and the disconnect are sized per 705.11 / 230.</div>`;
+  } else if(isPCS){
+    verdict=`<div style="border-left:4px solid #2EDBB1;background:#eafaf5;padding:9px 12px;border-radius:8px;font-size:12px"><b style="color:#0F9E7E">SPAN Power Control System \u2014 NEC 705.13.</b> The Smart Panel actively limits combined current so the ${ic.busbar} A busbar is never exceeded, which removes the 120% busbar calculation. This is this design's selected connection method and SPAN's preferred path. Subject to AHJ acceptance of the PCS listing and setpoint.</div>
+      <div style="margin-top:8px;font-size:10px;color:var(--grey)">For reference only (not the governing limit under 705.13): main ${ic.main} A + backfeed ${bfShown.toFixed(0)} A = ${ic.govLoad.toFixed(0)} A vs 1.2 \u00d7 ${ic.busbar} A = ${ic.allow120.toFixed(0)} A${ptTag}.</div>`;
   } else if(isSum){
-    verdict=`${bar}<div style="margin-top:9px;border-left:4px solid ${ic.passSum?"var(--green)":"var(--red)"};background:${ic.passSum?"var(--greenwash)":"var(--redwash)"};padding:9px 12px;border-radius:8px;font-size:12px"><b>${ic.passSum?"Satisfies the sum rule":"Exceeds the sum rule"} \u2014 705.12(B)(3)(1).</b> Main ${ic.main} A + backfeed ${ic.backfeed.toFixed(0)} A = ${ic.load120.toFixed(0)} A vs the ${ic.busbar} A busbar.</div>`;
+    verdict=`${bar}<div style="margin-top:9px;border-left:4px solid ${ic.passSum?"var(--green)":"var(--red)"};background:${ic.passSum?"var(--greenwash)":"var(--redwash)"};padding:9px 12px;border-radius:8px;font-size:12px"><b>${ic.passSum?"Satisfies the sum rule":"Exceeds the sum rule"} \u2014 705.12(B)(3)(1).</b> Main ${ic.main} A + backfeed ${bfShown.toFixed(0)} A = ${ic.govLoad.toFixed(0)} A vs the ${ic.busbar} A busbar.${ptNote}${ic.passSum?"":" "+relief}</div>`;
   } else {
-    verdict=`${bar}<div style="margin-top:9px;border-left:4px solid ${ic.pass120?"var(--green)":"var(--red)"};background:${ic.pass120?"var(--greenwash)":"var(--redwash)"};padding:9px 12px;border-radius:8px;font-size:12px"><b>${ic.pass120?"Within the 120% allowance":"Exceeds the 120% allowance"} \u2014 705.12(B)(3)(2).</b> Main ${ic.main} A + backfeed ${ic.backfeed.toFixed(0)} A = ${ic.load120.toFixed(0)} A vs 1.2 \u00d7 ${ic.busbar} A = ${ic.allow120.toFixed(0)} A (${ic.headroom>=0?"+":""}${ic.headroom.toFixed(0)} A). ${ic.passSum?"Also meets the sum rule.":(ic.pass120?"Relies on the 120% path (sum rule not met).":"")}</div>`;
+    verdict=`${bar}<div style="margin-top:9px;border-left:4px solid ${ic.pass120?"var(--green)":"var(--red)"};background:${ic.pass120?"var(--greenwash)":"var(--redwash)"};padding:9px 12px;border-radius:8px;font-size:12px"><b>${ic.pass120?"Within the 120% allowance":"Exceeds the 120% allowance"} \u2014 705.12(B)(3)(2).</b> Main ${ic.main} A + backfeed ${bfShown.toFixed(0)} A = ${ic.govLoad.toFixed(0)} A vs 1.2 \u00d7 ${ic.busbar} A = ${ic.allow120.toFixed(0)} A (${ic.headroom>=0?"+":""}${ic.headroom.toFixed(0)} A).${ptNote} ${ic.pass120?(ic.passSum?"Also meets the sum rule.":"Relies on the 120% path (sum rule not met)."):relief}</div>`;
   }
-  const pcs=`<div style="margin-top:10px;border-left:4px solid #2EDBB1;background:#eafaf5;border-radius:8px;padding:11px 13px;font-size:12px"><b style="color:#0F9E7E">SPAN Power Control System \u2014 NEC 705.13.</b> The Smart Panel actively limits combined current so the ${ic.busbar} A busbar is never exceeded \u2014 this removes the 120% calculation and is SPAN's preferred interconnection path.${isPCS?" <b>Selected as this design's connection method.</b>":""}</div>`;
+  /* SPAN PCS tip shown as the recommended alternative only when PCS is not already the chosen method. */
+  const pcs=(isPCS||isSupply)?"":`<div style="margin-top:10px;border-left:4px solid #2EDBB1;background:#eafaf5;border-radius:8px;padding:11px 13px;font-size:12px"><b style="color:#0F9E7E">SPAN Power Control System \u2014 NEC 705.13.</b> The Smart Panel actively limits combined current so the ${ic.busbar} A busbar is never exceeded \u2014 this removes the 120% calculation and is SPAN's preferred interconnection path. Select it above to apply it to this check.</div>`;
   return `<div class="sec">${eb("Interconnection check \u2014 NEC 705.12 / 705.13")}
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px">
       ${chip("Busbar rating",ic.busbar+" A")}${chip("Main breaker",ic.main+" A")}${chip("PV inverter",ic.pvA+" A")}${chip("Battery backfeed",ic.battA+" A"+(ic.battAutoUsed?" \u00b7 auto":""))}
@@ -3810,7 +4100,7 @@ function renderSS(){
   $("edition").addEventListener("change",setEdition);
   $("method").addEventListener("change",setMethod);
   renderQuickAdd();wireOneLine();renderOneLine();loadPlanFields();renderProv();setEdition();renderEditionSuggest();
-  ["ssname","ssnotes","sssystype","ssservice","ssscope","sspvstc","ssbattery","sspwqty","ssexpqty","ssapqty","sssoc","ssreserve","ssoverride","sspv","ssgenon","ssgenkw","ssbusbar","ssmain","sspvamps","ssbattamps","ssicm"].forEach(id=>{const el=$(id);if(el){el.addEventListener("input",()=>{readSS();renderSS();});el.addEventListener("change",()=>{readSS();renderSS();});}});
+  ["ssname","ssnotes","sssystype","ssservice","ssscope","sspvstc","ssbattery","sspwqty","ssexpqty","sspwout","ssbatpts","ssapqty","sssoc","ssreserve","ssoverride","sspv","ssgenon","ssgenkw","ssbusbar","ssmain","sspvamps","ssbattamps","ssicm"].forEach(id=>{const el=$(id);if(el){el.addEventListener("input",()=>{readSS();renderSS();});el.addEventListener("change",()=>{readSS();renderSS();});}});
   ssRenderQuick();
   if($("sssldfile"))$("sssldfile").addEventListener("change",e=>ssSldFile(e.target.files[0]));
   loadShared().then(loaded=>{ if(__blank && !loaded) startBlank(); });
